@@ -104,8 +104,9 @@ def build_database():
 
         # Add expressions for both
         for key in [e.nhk, e.kanjiexpr]:
-            if key in thedict and kanapron not in thedict[key]:
-                thedict[key].append(kanapron)
+            if key in thedict:
+                if kanapron not in thedict[key]:
+                    thedict[key].append(kanapron)
             else:
                 thedict[key] = [kanapron]
 
@@ -113,7 +114,9 @@ def lookupPronunciation(expr):
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
-            ret.append(pron)
+            if pron not in ret:
+                ret.append(pron)
+
     thehtml = """
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
 <HTML>
@@ -140,7 +143,7 @@ color: royalblue;
 %s
 </BODY>
 </HTML>
-""" % ("</br>".join(ret))
+""" % ("<br/><br/>\n".join(ret))
 
     showText(thehtml, type="html")
 
@@ -163,7 +166,7 @@ def createMenu():
     mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
 
 
-if (os.path.exists(accent_pickle) and
+if  (os.path.exists(accent_pickle) and
     os.stat(accent_pickle).st_mtime > os.stat(accent_database).st_mtime):
     f = open(accent_pickle, 'rb')
     thedict = cPickle.load(f)
