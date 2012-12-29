@@ -13,6 +13,7 @@ from aqt.utils import showText
 
 import japanese
 
+thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
 accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
 accent_pickle = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.pickle")
 
@@ -167,7 +168,8 @@ def createMenu():
 
 
 if  (os.path.exists(accent_pickle) and
-    os.stat(accent_pickle).st_mtime > os.stat(accent_database).st_mtime):
+    os.stat(accent_pickle).st_mtime > os.stat(accent_database).st_mtime and
+    os.stat(accent_pickle).st_mtime > os.stat(thisfile).st_mtime):
     f = open(accent_pickle, 'rb')
     thedict = cPickle.load(f)
     f.close()
