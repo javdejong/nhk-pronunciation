@@ -14,6 +14,7 @@ from aqt.utils import showText
 import japanese
 
 thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
+derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
 accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
 accent_pickle = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.pickle")
 
@@ -111,12 +112,16 @@ def build_database():
             else:
                 thedict[key] = [kanapron]
 
-def lookupPronunciation(expr):
+def getPronunciations(expr):
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
             if pron not in ret:
                 ret.append(pron)
+    return ret
+
+def lookupPronunciation(expr):
+    ret = getPronunciations(expr)
 
     thehtml = """
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
@@ -131,13 +136,12 @@ text-decoration:overline;
 }
 .nasal {
 color: red;
-font-weight: bold;
 }
 .nopron {
 color: royalblue;
 }
 </style>
-<TITLE>your page's title</TITLE>
+<TITLE>Pronunciations</TITLE>
 <meta charset="UTF-8" />
 </HEAD>
 <BODY>
@@ -166,6 +170,27 @@ def createMenu():
     ml.addAction(a)
     mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
 
+def inline_style(txt):
+    txt = txt.replace('class="overline"', 'style="text-decoration:overline;"')
+    txt = txt.replace('class="nopron"', 'style="color: royalblue;"')
+    txt = txt.replace('class="nasal"', 'style="color: red;"')
+    return txt
+
+def add_pronunciation(fields, model, data, n):
+
+    if "japanese" not in model['name'].lower():
+        return fields
+
+    if "Pronunciation" not in fields or "Expression" not in fields or "Reading" not in fields:
+        return fields
+
+    prons = getPronunciations(fields["Expression"])
+
+    # TODO: Find a way to add styles to the reviewer, so we don't have use inline definitions
+    prons = [inline_style(x) for x in prons]
+
+    fields["Pronunciation"] = "  ***  ".join(prons)
+    return fields
 
 if  (os.path.exists(accent_pickle) and
     os.stat(accent_pickle).st_mtime > os.stat(accent_database).st_mtime and
@@ -180,3 +205,7 @@ else:
     f.close()
 
 createMenu()
+
+from anki.hooks import addHook
+
+addHook("mungeFields", add_pronunciation)
