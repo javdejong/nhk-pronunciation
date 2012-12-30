@@ -15,8 +15,8 @@ import japanese
 
 thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
 derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
+derivative_pickle = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.pickle")
 accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
-accent_pickle = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.pickle")
 
 AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','midashigo','nhk','kanjiexpr','NHKexpr','numberchars','nopronouncepos','nasalsoundpos','majiri','kaisi','KWAV','midashigo1','akusentosuu','bunshou','ac'])
 
@@ -89,6 +89,7 @@ def format_entry(e):
 
 
 def build_database():
+    tempdict = {}
     entries = []
 
     f = codecs.open(accent_database, 'r', 'utf8')
@@ -106,11 +107,33 @@ def build_database():
 
         # Add expressions for both
         for key in [e.nhk, e.kanjiexpr]:
-            if key in thedict:
-                if kanapron not in thedict[key]:
-                    thedict[key].append(kanapron)
+            if key in tempdict:
+                if kanapron not in tempdict[key]:
+                    tempdict[key].append(kanapron)
             else:
-                thedict[key] = [kanapron]
+                tempdict[key] = [kanapron]
+
+    o = codecs.open(derivative_database, 'w', 'utf8')
+
+    for key in tempdict.iterkeys():
+        for kana, pron in tempdict[key]:
+            o.write("%s\t%s\t%s\n" % (key, kana, pron))
+
+    o.close()
+
+def read_derivative():
+    f = codecs.open(derivative_database, 'r', 'utf8')
+
+    for line in f:
+        key, kana, pron = line.strip().split("\t")
+        kanapron = (kana, pron)
+        if key in thedict:
+            if kanapron not in thedict[key]:
+                thedict[key].append(kanapron)
+        else:
+            thedict[key] = [kanapron]
+
+    f.close()
 
 def getPronunciations(expr):
     ret = []
@@ -192,15 +215,23 @@ def add_pronunciation(fields, model, data, n):
     fields["Pronunciation"] = "  ***  ".join(prons)
     return fields
 
-if  (os.path.exists(accent_pickle) and
-    os.stat(accent_pickle).st_mtime > os.stat(accent_database).st_mtime and
-    os.stat(accent_pickle).st_mtime > os.stat(thisfile).st_mtime):
-    f = open(accent_pickle, 'rb')
+# First check that either the original database, or the derivative text file are present:
+if not os.path.exists(derivative_database) and not os.path.exists(accent_database):
+    raise IOError("Could not locate the original base or the derivative database!")
+
+# Generate the derivative database if it does not exist yet
+if (os.path.exists(accent_database) and not os.path.exists(derivative_database)) or (os.path.exists(accent_database) and os.stat(thisfile).st_mtime > os.stat(derivative_database).st_mtime):
+    build_database()
+
+# If a pickle exists of the derivative file, use that. Otherwise, read from the derivative file and generate a pickle.
+if  (os.path.exists(derivative_pickle) and
+    os.stat(derivative_pickle).st_mtime > os.stat(derivative_database).st_mtime):
+    f = open(derivative_pickle, 'rb')
     thedict = cPickle.load(f)
     f.close()
 else:
-    build_database()
-    f = open(accent_pickle, 'wb')
+    read_derivative()
+    f = open(derivative_pickle, 'wb')
     cPickle.dump(thedict, f, cPickle.HIGHEST_PROTOCOL)
     f.close()
 
