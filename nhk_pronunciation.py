@@ -13,6 +13,22 @@ from aqt.utils import showText
 
 import japanese
 
+
+# ************************************************
+#                User Options                    *
+# ************************************************
+
+# Style mappings (edit this if you want different colors etc.):
+styles = {'class="overline"': 'style="text-decoration:overline;"',
+          'class="nopron"':   'style="color: royalblue;"',
+          'class="nasal"':    'style="color: red;"',
+          '&#42780;': '&#42780;'}
+
+
+# ************************************************
+#                Global Variables                *
+# ************************************************
+
 # Paths to the database files and this particular file
 thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
 derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
@@ -149,13 +165,22 @@ def read_derivative():
 # ************************************************
 #              Lookup Functions                  *
 # ************************************************
+def inline_style(txt):
+    """ Map style classes to their inline version """
+
+    for key in styles.iterkeys():
+        txt = txt.replace(key, styles[key])
+
+    return txt
+
+
 def getPronunciations(expr):
     """ Search pronuncations for a particular expression """
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
             if pron not in ret:
-                ret.append(pron)
+                ret.append(inline_style(pron))
     return ret
 
 
@@ -170,15 +195,6 @@ def lookupPronunciation(expr):
 <style>
 body {
 font-size: 30px;
-}
-.overline {
-text-decoration:overline;
-}
-.nasal {
-color: red;
-}
-.nopron {
-color: royalblue;
 }
 </style>
 <TITLE>Pronunciations</TITLE>
@@ -197,14 +213,6 @@ def onLookupPronunciation():
     """ Do a lookup on the selection """
     japanese.lookup.initLookup()
     mw.lookup.selection(lookupPronunciation)
-
-
-def inline_style(txt):
-    """ Map style classes to their inline version """
-    txt = txt.replace('class="overline"', 'style="text-decoration:overline;"')
-    txt = txt.replace('class="nopron"', 'style="color: royalblue;"')
-    txt = txt.replace('class="nasal"', 'style="color: red;"')
-    return txt
 
 
 # ************************************************
@@ -237,9 +245,6 @@ def add_pronunciation(fields, model, data, n):
         return fields
 
     prons = getPronunciations(fields["Expression"])
-
-    # TODO: Find a way to add styles to the reviewer, so we don't have use inline definitions
-    prons = [inline_style(x) for x in prons]
 
     fields["Pronunciation"] = "  ***  ".join(prons)
     return fields
