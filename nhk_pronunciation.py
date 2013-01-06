@@ -24,6 +24,14 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           'class="nasal"':    'style="color: red;"',
           '&#42780;': '&#42780;'}
 
+# Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
+exprField = 'Expression'
+readField = 'Reading'
+pronField = 'Pronunciation'
+
+# Regenerate readings even if they already exist?
+regenerate_readings = False
+
 
 # ************************************************
 #                Global Variables                *
@@ -235,19 +243,60 @@ def createMenu():
     mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
 
 
-def add_pronunciation(fields, model, data, n):
-    """ When possible, set the pronunciation to a field """
+def setupBrowserMenu(browser):
+    """ Add menu entry to browser window """
+    a = QAction("Bulk-add Pronunciations", browser)
+    browser.connect(a, SIGNAL("triggered()"), lambda e=browser: onRegenerate(e))
+    browser.form.menuEdit.addSeparator()
+    browser.form.menuEdit.addAction(a)
+
+
+def onRegenerate(browser):
+    regeneratePronunciations(browser.selectedNotes())
+
+
+def add_pronunciation_once(fields, model, data, n):
+    """ When possible, temporarily set the pronunciation to a field """
 
     if "japanese" not in model['name'].lower():
         return fields
 
-    if "Pronunciation" not in fields or "Expression" not in fields or "Reading" not in fields:
+    if pronField not in fields or exprField not in fields:
         return fields
 
-    prons = getPronunciations(fields["Expression"])
+    # Only add the pronunciation if there's not already one in the pronunciation field
+    if not fields[pronField]:
+        prons = getPronunciations(fields[exprField])
+        fields[pronField] = "  ***  ".join(prons)
 
-    fields["Pronunciation"] = "  ***  ".join(prons)
     return fields
+
+
+def regeneratePronunciations(nids):
+    mw.checkpoint("Bulk-add Pronunciations")
+    mw.progress.start()
+    for nid in nids:
+        note = mw.col.getNote(nid)
+        if "japanese" not in note.model()['name'].lower():
+            continue
+
+        if pronField not in note or exprField not in note:
+            continue
+
+        if note[pronField] and not regenerate_readings:
+            # already contains data, skip
+            continue
+
+        srcTxt = mw.col.media.strip(note[exprField])
+        if not srcTxt.strip():
+            continue
+
+        prons = getPronunciations(srcTxt)
+        note[pronField] = "  ***  ".join(prons)
+
+        note.flush()
+    mw.progress.finish()
+    mw.reset()
 
 
 # ************************************************
@@ -274,8 +323,13 @@ else:
     cPickle.dump(thedict, f, cPickle.HIGHEST_PROTOCOL)
     f.close()
 
+# Create the manual look-up menu entry
 createMenu()
 
 from anki.hooks import addHook
 
-addHook("mungeFields", add_pronunciation)
+addHook("mungeFields", add_pronunciation_once)
+
+
+# Bulk add
+addHook("browser.setupMenus", setupBrowserMenu)
