@@ -13,17 +13,24 @@ from aqt.utils import showText
 
 import japanese
 
+# Paths to the database files and this particular file
 thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
 derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
 derivative_pickle = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.pickle")
 accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
 
+# "Class" declaration
 AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','midashigo','nhk','kanjiexpr','NHKexpr','numberchars','nopronouncepos','nasalsoundpos','majiri','kaisi','KWAV','midashigo1','akusentosuu','bunshou','ac'])
 
+# The main dict used to store all entries
 thedict = {}
 
-""" Formatting an entry using html """
+
+# ************************************************
+#           Database generation functions        *
+# ************************************************
 def format_entry(e):
+    """ Format an entry from the data in the original database to something that uses html """
     txt = e.midashigo1
     strlen = len(txt)
     acclen = len(e.ac)
@@ -89,6 +96,7 @@ def format_entry(e):
 
 
 def build_database():
+    """ Build the derived database from the original database """
     tempdict = {}
     entries = []
 
@@ -121,7 +129,9 @@ def build_database():
 
     o.close()
 
+
 def read_derivative():
+    """ Read the derivative file to memory """
     f = codecs.open(derivative_database, 'r', 'utf8')
 
     for line in f:
@@ -135,7 +145,12 @@ def read_derivative():
 
     f.close()
 
+
+# ************************************************
+#              Lookup Functions                  *
+# ************************************************
 def getPronunciations(expr):
+    """ Search pronuncations for a particular expression """
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
@@ -143,7 +158,9 @@ def getPronunciations(expr):
                 ret.append(pron)
     return ret
 
+
 def lookupPronunciation(expr):
+    """ Show the pronunciation when the user does a manual lookup """
     ret = getPronunciations(expr)
 
     thehtml = """
@@ -175,11 +192,27 @@ color: royalblue;
 
     showText(thehtml, type="html")
 
+
 def onLookupPronunciation():
+    """ Do a lookup on the selection """
     japanese.lookup.initLookup()
     mw.lookup.selection(lookupPronunciation)
 
+
+def inline_style(txt):
+    """ Map style classes to their inline version """
+    txt = txt.replace('class="overline"', 'style="text-decoration:overline;"')
+    txt = txt.replace('class="nopron"', 'style="color: royalblue;"')
+    txt = txt.replace('class="nasal"', 'style="color: red;"')
+    return txt
+
+
+# ************************************************
+#              Interface                         *
+# ************************************************
+
 def createMenu():
+    """ Add a hotkey and menu entry """
     if not getattr(mw.form, "menuLookup", None):
         ml = QMenu()
         ml.setTitle("Lookup")
@@ -193,13 +226,9 @@ def createMenu():
     ml.addAction(a)
     mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
 
-def inline_style(txt):
-    txt = txt.replace('class="overline"', 'style="text-decoration:overline;"')
-    txt = txt.replace('class="nopron"', 'style="color: royalblue;"')
-    txt = txt.replace('class="nasal"', 'style="color: red;"')
-    return txt
 
 def add_pronunciation(fields, model, data, n):
+    """ When possible, set the pronunciation to a field """
 
     if "japanese" not in model['name'].lower():
         return fields
@@ -214,6 +243,11 @@ def add_pronunciation(fields, model, data, n):
 
     fields["Pronunciation"] = "  ***  ".join(prons)
     return fields
+
+
+# ************************************************
+#                   Main                         *
+# ************************************************
 
 # First check that either the original database, or the derivative text file are present:
 if not os.path.exists(derivative_database) and not os.path.exists(accent_database):
