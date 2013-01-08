@@ -187,8 +187,9 @@ def getPronunciations(expr):
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
-            if pron not in ret:
-                ret.append(inline_style(pron))
+            inlinepron = inline_style(pron)
+            if inlinepron not in ret:
+                ret.append(inlinepron)
     return ret
 
 
