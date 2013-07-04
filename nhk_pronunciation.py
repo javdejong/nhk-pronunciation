@@ -12,6 +12,7 @@ from aqt.qt import *
 from aqt.utils import showText
 
 import japanese
+import japanese.lookup
 
 
 # ************************************************
