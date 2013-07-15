@@ -26,9 +26,8 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           '&#42780;': '&#42780;'}
 
 # Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
-exprField = 'Expression'
-readField = 'Reading'
-pronField = 'Pronunciation'
+srcFields = ['Expression']
+dstFields = ['Pronunciation']
 
 # Regenerate readings even if they already exist?
 regenerate_readings = False
@@ -257,19 +256,38 @@ def onRegenerate(browser):
     regeneratePronunciations(browser.selectedNotes())
 
 
+def get_src_dst_fields(fields):
+    """ Set source and destination fieldnames """
+    src = None
+    dst = None
+
+    for f in srcFields:
+        if f in fields:
+            src = f
+            break
+
+    for f in dstFields:
+        if f in fields:
+            dst = f
+            break
+
+    return src, dst
+
 def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
     if "japanese" not in model['name'].lower():
         return fields
 
-    if pronField not in fields or exprField not in fields:
+    src, dst = get_src_dst_fields(fields)
+
+    if src is None or dst is None:
         return fields
 
     # Only add the pronunciation if there's not already one in the pronunciation field
-    if not fields[pronField]:
-        prons = getPronunciations(fields[exprField])
-        fields[pronField] = "  ***  ".join(prons)
+    if not fields[dst]:
+        prons = getPronunciations(fields[src])
+        fields[dst] = "  ***  ".join(prons)
 
     return fields
 
@@ -282,19 +300,21 @@ def regeneratePronunciations(nids):
         if "japanese" not in note.model()['name'].lower():
             continue
 
-        if pronField not in note or exprField not in note:
+        src, dst = get_src_dst_fields(note)
+
+        if src is None or dst is None:
             continue
 
-        if note[pronField] and not regenerate_readings:
+        if note[dst] and not regenerate_readings:
             # already contains data, skip
             continue
 
-        srcTxt = mw.col.media.strip(note[exprField])
+        srcTxt = mw.col.media.strip(note[src])
         if not srcTxt.strip():
             continue
 
         prons = getPronunciations(srcTxt)
-        note[pronField] = "  ***  ".join(prons)
+        note[dst] = "  ***  ".join(prons)
 
         note.flush()
     mw.progress.finish()
