@@ -291,6 +291,46 @@ def add_pronunciation_once(fields, model, data, n):
 
     return fields
 
+def add_pronunciation_focusLost(flag, n, fidx):
+    from aqt import mw
+
+    # japanese model?
+    if "japanese" not in n.model()['name'].lower():
+        return flag
+
+    # have src and dst fields?
+    for c, name in enumerate(mw.col.models.fieldNames(n.model())):
+        for f in srcFields:
+            if name == f:
+                src = f
+                srcIdx = c
+        for f in dstFields:
+            if name == f:
+                dst = f
+    if not src or not dst:
+        return flag
+
+    # dst field already filled?
+    if n[dst]:
+        return flag
+
+    # event coming from src field?
+    if fidx != srcIdx:
+        return flag
+
+    # grab source text
+    srcTxt = mw.col.media.strip(n[src])
+    if not srcTxt:
+        return flag
+
+    # update field
+    try:
+        prons = getPronunciations(srcTxt)
+        n[dst] = "  ***  ".join(prons)
+    except Exception, e:
+        raise
+    return True
+
 
 def regeneratePronunciations(nids):
     mw.checkpoint("Bulk-add Pronunciations")
@@ -352,6 +392,7 @@ from anki.hooks import addHook
 
 addHook("mungeFields", add_pronunciation_once)
 
+addHook('editFocusLost', add_pronunciation_focusLost)
 
 # Bulk add
 addHook("browser.setupMenus", setupBrowserMenu)
