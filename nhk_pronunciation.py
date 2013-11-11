@@ -259,19 +259,23 @@ def onRegenerate(browser):
 def get_src_dst_fields(fields):
     """ Set source and destination fieldnames """
     src = None
+    srcIdx = None
     dst = None
+    dstIdx = None
 
-    for f in srcFields:
+    for i, f in enumerate(srcFields):
         if f in fields:
             src = f
+            srcIdx = i
             break
 
-    for f in dstFields:
+    for i, f in enumerate(dstFields):
         if f in fields:
             dst = f
+            dstIdx = i
             break
 
-    return src, dst
+    return src, srcIdx, dst, dstIdx
 
 def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
@@ -279,7 +283,7 @@ def add_pronunciation_once(fields, model, data, n):
     if "japanese" not in model['name'].lower():
         return fields
 
-    src, dst = get_src_dst_fields(fields)
+    src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
 
     if src is None or dst is None:
         return fields
@@ -292,21 +296,15 @@ def add_pronunciation_once(fields, model, data, n):
     return fields
 
 def add_pronunciation_focusLost(flag, n, fidx):
-    from aqt import mw
-
     # japanese model?
     if "japanese" not in n.model()['name'].lower():
         return flag
 
-    # have src and dst fields?
-    for c, name in enumerate(mw.col.models.fieldNames(n.model())):
-        for f in srcFields:
-            if name == f:
-                src = f
-                srcIdx = c
-        for f in dstFields:
-            if name == f:
-                dst = f
+    from aqt import mw
+    fields = mw.col.models.fieldNames(n.model())
+
+    src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
+
     if not src or not dst:
         return flag
 
@@ -340,7 +338,7 @@ def regeneratePronunciations(nids):
         if "japanese" not in note.model()['name'].lower():
             continue
 
-        src, dst = get_src_dst_fields(note)
+        src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
 
         if src is None or dst is None:
             continue
