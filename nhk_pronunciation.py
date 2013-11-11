@@ -238,7 +238,7 @@ def createMenu():
     ml = mw.form.menuLookup
     # add action
     a = QAction(mw)
-    a.setText("...pronunciation on alc")
+    a.setText("...pronunciation")
     a.setShortcut("Ctrl+6")
     ml.addAction(a)
     mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
