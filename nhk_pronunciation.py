@@ -32,6 +32,8 @@ dstFields = ['Pronunciation']
 # Regenerate readings even if they already exist?
 regenerate_readings = False
 
+# Use hiragana instead of katakana for readings?
+pronunciation_hiragana = False
 
 # ************************************************
 #                Global Variables                *
@@ -48,6 +50,23 @@ AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','mid
 
 # The main dict used to store all entries
 thedict = {}
+
+
+# ************************************************
+#                  Helper functions              *
+# ************************************************
+def katakana_to_hiragana(to_translate):
+    hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+               u'あいうえおかきくけこさしすせそたちつてと' \
+               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+               u'わをんぁぃぅぇぉゃゅょっ'
+    katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
+               u'アイウエオカキクケコサシスセソタチツテト' \
+               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
+               u'ワヲンァィゥェォャュョッ'
+    katakana = [ord(char) for char in katakana]
+    translate_table = dict(zip(katakana, hiragana))
+    return to_translate.translate(translate_table)
 
 
 # ************************************************
@@ -188,6 +207,10 @@ def getPronunciations(expr):
     if expr in thedict:
         for kana, pron in thedict[expr]:
             inlinepron = inline_style(pron)
+
+            if pronunciation_hiragana:
+                inlinepron = katakana_to_hiragana(inlinepron)
+
             if inlinepron not in ret:
                 ret.append(inlinepron)
     return ret
