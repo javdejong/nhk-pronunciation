@@ -25,8 +25,15 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           'class="nasal"':    'style="color: red;"',
           '&#42780;': '&#42780;'}
 
-# Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
-srcFields = ['Expression']
+# The note type(s) that the plugin will act on.
+# Add your own note types here, for example: note_types = ["japanese", "subs"]
+note_types = ["japanese", "kanji"]
+
+# The field name(s) that the plugin will search for.
+# Add your own fields here, for example:
+# srcFields = ['Expression', 'Kanji']
+# dstFields = ['Pronunciation', 'Pitch Accent']
+srcFields = ['Expression', 'Kanji Word']
 dstFields = ['Pronunciation']
 
 # Regenerate readings even if they already exist?
@@ -303,7 +310,8 @@ def get_src_dst_fields(fields):
 def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
-    if "japanese" not in model['name'].lower():
+    # Check if this is a supported note type. If it is not, return.
+    if not any(nt.lower() in model['name'].lower() for nt in note_types):
         return fields
 
     src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
@@ -319,8 +327,8 @@ def add_pronunciation_once(fields, model, data, n):
     return fields
 
 def add_pronunciation_focusLost(flag, n, fidx):
-    # japanese model?
-    if "japanese" not in n.model()['name'].lower():
+    # Check if this is a supported note type. If it is not, return.
+    if not any(nt.lower() in n.model()['name'].lower() for nt in note_types):
         return flag
 
     from aqt import mw
@@ -358,7 +366,9 @@ def regeneratePronunciations(nids):
     mw.progress.start()
     for nid in nids:
         note = mw.col.getNote(nid)
-        if "japanese" not in note.model()['name'].lower():
+
+        # Check if this is a supported note type. If it is not, skip.
+        if not any(nt.lower() in note.model()['name'].lower() for nt in note_types):
             continue
 
         src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
@@ -374,7 +384,7 @@ def regeneratePronunciations(nids):
         if not srcTxt.strip():
             continue
 
-        prons = getPronunciations(srcTxt)
+        prons = getPronunciations(srcTxt.strip())
         note[dst] = "  ***  ".join(prons)
 
         note.flush()
