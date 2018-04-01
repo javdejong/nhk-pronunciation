@@ -1,0 +1,11 @@
+{
+	"styles": {"class=\"overline\"": "style=\"text-decoration:overline;\"",
+			   "class=\"nopron\"": "style=\"color: royalblue;\"",
+			   "class=\"nasal\"": "style=\"color: red;\"",
+			   "&#42780;": "&#42780;"},
+	"noteTypes": ["japanese", "kanji"],
+	"srcFields": ["Expression", "Kanji Word"],
+	"dstFields": ["Pronunciation"],
+	"regenerateReadings": false,
+	"pronunciationHiragana": false
+}

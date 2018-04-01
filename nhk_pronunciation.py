@@ -1,56 +1,28 @@
-# -*- coding: utf-8 -*-
-
 from collections import namedtuple
+from PyQt5.QtWidgets import *
+
 import re
-import codecs
 import os
-import cPickle
+import pickle
 import time
 
 from aqt import mw
 from aqt.qt import *
 from aqt.utils import showText
 
-import japanese
-import japanese.lookup
 
-
-# ************************************************
-#                User Options                    *
-# ************************************************
-
-# Style mappings (edit this if you want different colors etc.):
-styles = {'class="overline"': 'style="text-decoration:overline;"',
-          'class="nopron"':   'style="color: royalblue;"',
-          'class="nasal"':    'style="color: red;"',
-          '&#42780;': '&#42780;'}
-
-# The note type(s) that the plugin will act on.
-# Add your own note types here, for example: note_types = ["japanese", "subs"]
-note_types = ["japanese", "kanji"]
-
-# The field name(s) that the plugin will search for.
-# Add your own fields here, for example:
-# srcFields = ['Expression', 'Kanji']
-# dstFields = ['Pronunciation', 'Pitch Accent']
-srcFields = ['Expression', 'Kanji Word']
-dstFields = ['Pronunciation']
-
-# Regenerate readings even if they already exist?
-regenerate_readings = False
-
-# Use hiragana instead of katakana for readings?
-pronunciation_hiragana = False
+config = mw.addonManager.getConfig(__name__)
 
 # ************************************************
 #                Global Variables                *
 # ************************************************
 
 # Paths to the database files and this particular file
-thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
-derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
-derivative_pickle = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.pickle")
-accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
+dir_path = os.path.dirname(os.path.realpath(__file__))
+thisfile = os.path.join(dir_path, "nhk_pronunciation.py")
+derivative_database = os.path.join(dir_path, "nhk_pronunciation.csv")
+derivative_pickle = os.path.join(dir_path, "nhk_pronunciation.pickle")
+accent_database = os.path.join(dir_path, "ACCDB_unicode.csv")
 
 # "Class" declaration
 AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','midashigo','nhk','kanjiexpr','NHKexpr','numberchars','nopronouncepos','nasalsoundpos','majiri','kaisi','KWAV','midashigo1','akusentosuu','bunshou','ac'])
@@ -63,14 +35,14 @@ thedict = {}
 #                  Helper functions              *
 # ************************************************
 def katakana_to_hiragana(to_translate):
-    hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
-               u'あいうえおかきくけこさしすせそたちつてと' \
-               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
-               u'わをんぁぃぅぇぉゃゅょっ'
-    katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
-               u'アイウエオカキクケコサシスセソタチツテト' \
-               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
-               u'ワヲンァィゥェォャュョッ'
+    hiragana = 'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+               'あいうえおかきくけこさしすせそたちつてと' \
+               'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+               'わをんぁぃぅぇぉゃゅょっ'
+    katakana = 'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
+               'アイウエオカキクケコサシスセソタチツテト' \
+               'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
+               'ワヲンァィゥェォャュョッ'
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
     return to_translate.translate(translate_table)
@@ -150,10 +122,13 @@ def build_database():
     tempdict = {}
     entries = []
 
-    f = codecs.open(accent_database, 'r', 'utf8')
+    f = open(accent_database, 'r', encoding="utf-8")
     for line in f:
-        line = re.sub("\{(.*),(.*)\}", "\{\1;\2\}", line.strip())
-        line = re.sub("\((.*),(.*)\)", "\(\1;\2\)   ", line.strip())
+        line = line.strip()
+        substrs = re.findall(r'(\{.*?,.*?\})', line)
+        substrs.extend(re.findall(r'(\(.*?,.*?\))', line))
+        for s in substrs:
+            line = line.replace(s, s.replace(',', ';'))
         entries.append(AccentEntry._make(line.split(",")))
     f.close()
 
@@ -171,9 +146,9 @@ def build_database():
             else:
                 tempdict[key] = [kanapron]
 
-    o = codecs.open(derivative_database, 'w', 'utf8')
+    o = open(derivative_database, 'w', encoding="utf-8")
 
-    for key in tempdict.iterkeys():
+    for key in tempdict.keys():
         for kana, pron in tempdict[key]:
             o.write("%s\t%s\t%s\n" % (key, kana, pron))
 
@@ -182,7 +157,7 @@ def build_database():
 
 def read_derivative():
     """ Read the derivative file to memory """
-    f = codecs.open(derivative_database, 'r', 'utf8')
+    f = open(derivative_database, 'r', encoding="utf-8")
 
     for line in f:
         key, kana, pron = line.strip().split("\t")
@@ -202,8 +177,8 @@ def read_derivative():
 def inline_style(txt):
     """ Map style classes to their inline version """
 
-    for key in styles.iterkeys():
-        txt = txt.replace(key, styles[key])
+    for k, v in config["styles"].items():
+        txt = txt.replace(k, v)
 
     return txt
 
@@ -215,7 +190,7 @@ def getPronunciations(expr):
         for kana, pron in thedict[expr]:
             inlinepron = inline_style(pron)
 
-            if pronunciation_hiragana:
+            if config["pronunciationHiragana"]:
                 inlinepron = katakana_to_hiragana(inlinepron)
 
             if inlinepron not in ret:
@@ -250,7 +225,6 @@ font-size: 30px;
 
 def onLookupPronunciation():
     """ Do a lookup on the selection """
-    japanese.lookup.initLookup()
     mw.lookup.selection(lookupPronunciation)
 
 
@@ -269,15 +243,14 @@ def createMenu():
     # add action
     a = QAction(mw)
     a.setText("...pronunciation")
-    a.setShortcut("Ctrl+6")
     ml.addAction(a)
-    mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
+    a.triggered.connect(onLookupPronunciation)
 
 
 def setupBrowserMenu(browser):
     """ Add menu entry to browser window """
     a = QAction("Bulk-add Pronunciations", browser)
-    browser.connect(a, SIGNAL("triggered()"), lambda e=browser: onRegenerate(e))
+    a.triggered.connect(lambda: onRegenerate(browser))
     browser.form.menuEdit.addSeparator()
     browser.form.menuEdit.addAction(a)
 
@@ -293,13 +266,13 @@ def get_src_dst_fields(fields):
     dst = None
     dstIdx = None
 
-    for i, f in enumerate(srcFields):
+    for i, f in enumerate(config["srcFields"]):
         if f in fields:
             src = f
             srcIdx = i
             break
 
-    for i, f in enumerate(dstFields):
+    for i, f in enumerate(config["dstFields"]):
         if f in fields:
             dst = f
             dstIdx = i
@@ -311,7 +284,7 @@ def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
     # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in model['name'].lower() for nt in note_types):
+    if not any(nt.lower() in model['name'].lower() for nt in config["noteTypes"]):
         return fields
 
     src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
@@ -328,7 +301,7 @@ def add_pronunciation_once(fields, model, data, n):
 
 def add_pronunciation_focusLost(flag, n, fidx):
     # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in n.model()['name'].lower() for nt in note_types):
+    if not any(nt.lower() in n.model()['name'].lower() for nt in config["noteTypes"]):
         return flag
 
     from aqt import mw
@@ -356,7 +329,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
     try:
         prons = getPronunciations(srcTxt)
         n[dst] = "  ***  ".join(prons)
-    except Exception, e:
+    except Exception as e:
         raise
     return True
 
@@ -368,7 +341,7 @@ def regeneratePronunciations(nids):
         note = mw.col.getNote(nid)
 
         # Check if this is a supported note type. If it is not, skip.
-        if not any(nt.lower() in note.model()['name'].lower() for nt in note_types):
+        if not any(nt.lower() in note.model()['name'].lower() for nt in config["noteTypes"]):
             continue
 
         src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
@@ -376,7 +349,7 @@ def regeneratePronunciations(nids):
         if src is None or dst is None:
             continue
 
-        if note[dst] and not regenerate_readings:
+        if note[dst] and not config["regenerateReadings"]:
             # already contains data, skip
             continue
 
@@ -408,12 +381,12 @@ if (os.path.exists(accent_database) and not os.path.exists(derivative_database))
 if  (os.path.exists(derivative_pickle) and
     os.stat(derivative_pickle).st_mtime > os.stat(derivative_database).st_mtime):
     f = open(derivative_pickle, 'rb')
-    thedict = cPickle.load(f)
+    thedict = pickle.load(f)
     f.close()
 else:
     read_derivative()
     f = open(derivative_pickle, 'wb')
-    cPickle.dump(thedict, f, cPickle.HIGHEST_PROTOCOL)
+    pickle.dump(thedict, f, pickle.HIGHEST_PROTOCOL)
     f.close()
 
 # Create the manual look-up menu entry
