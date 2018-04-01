@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple
+from PyQt5.QtWidgets import *
+
 import re
 import codecs
 import os
-import cPickle
+import pickle
 import time
 
 from aqt import mw
 from aqt.qt import *
 from aqt.utils import showText
 
-import japanese
-import japanese.lookup
+from . import lookup
 
 
 # ************************************************
@@ -47,10 +48,11 @@ pronunciation_hiragana = False
 # ************************************************
 
 # Paths to the database files and this particular file
-thisfile = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.py")
-derivative_database = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.csv")
-derivative_pickle = os.path.join(mw.pm.addonFolder(), "nhk_pronunciation.pickle")
-accent_database = os.path.join(mw.pm.addonFolder(), "ACCDB_unicode.csv")
+dir_path = os.path.dirname(os.path.realpath(__file__))
+thisfile = os.path.join(dir_path, "nhk_pronunciation.py")
+derivative_database = os.path.join(dir_path, "nhk_pronunciation.csv")
+derivative_pickle = os.path.join(dir_path, "nhk_pronunciation.pickle")
+accent_database = os.path.join(dir_path, "ACCDB_unicode.csv")
 
 # "Class" declaration
 AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','midashigo','nhk','kanjiexpr','NHKexpr','numberchars','nopronouncepos','nasalsoundpos','majiri','kaisi','KWAV','midashigo1','akusentosuu','bunshou','ac'])
@@ -63,16 +65,16 @@ thedict = {}
 #                  Helper functions              *
 # ************************************************
 def katakana_to_hiragana(to_translate):
-    hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
-               u'あいうえおかきくけこさしすせそたちつてと' \
-               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
-               u'わをんぁぃぅぇぉゃゅょっ'
-    katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
-               u'アイウエオカキクケコサシスセソタチツテト' \
-               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
-               u'ワヲンァィゥェォャュョッ'
+    hiragana = 'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+               'あいうえおかきくけこさしすせそたちつてと' \
+               'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+               'わをんぁぃぅぇぉゃゅょっ'
+    katakana = 'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
+               'アイウエオカキクケコサシスセソタチツテト' \
+               'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
+               'ワヲンァィゥェォャュョッ'
     katakana = [ord(char) for char in katakana]
-    translate_table = dict(zip(katakana, hiragana))
+    translate_table = dict(list(zip(katakana, hiragana)))
     return to_translate.translate(translate_table)
 
 
@@ -173,7 +175,7 @@ def build_database():
 
     o = codecs.open(derivative_database, 'w', 'utf8')
 
-    for key in tempdict.iterkeys():
+    for key in tempdict.keys():
         for kana, pron in tempdict[key]:
             o.write("%s\t%s\t%s\n" % (key, kana, pron))
 
@@ -202,7 +204,7 @@ def read_derivative():
 def inline_style(txt):
     """ Map style classes to their inline version """
 
-    for key in styles.iterkeys():
+    for key in styles.keys():
         txt = txt.replace(key, styles[key])
 
     return txt
@@ -271,13 +273,13 @@ def createMenu():
     a.setText("...pronunciation")
     a.setShortcut("Ctrl+6")
     ml.addAction(a)
-    mw.connect(a, SIGNAL("triggered()"), onLookupPronunciation)
+    a.triggered.connect(onLookupPronunciation)
 
 
 def setupBrowserMenu(browser):
     """ Add menu entry to browser window """
     a = QAction("Bulk-add Pronunciations", browser)
-    browser.connect(a, SIGNAL("triggered()"), lambda e=browser: onRegenerate(e))
+    a.triggered.connect(lambda e=browser: onRegenerate(e))
     browser.form.menuEdit.addSeparator()
     browser.form.menuEdit.addAction(a)
 
@@ -356,7 +358,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
     try:
         prons = getPronunciations(srcTxt)
         n[dst] = "  ***  ".join(prons)
-    except Exception, e:
+    except Exception as e:
         raise
     return True
 
@@ -408,12 +410,12 @@ if (os.path.exists(accent_database) and not os.path.exists(derivative_database))
 if  (os.path.exists(derivative_pickle) and
     os.stat(derivative_pickle).st_mtime > os.stat(derivative_database).st_mtime):
     f = open(derivative_pickle, 'rb')
-    thedict = cPickle.load(f)
+    thedict = pickle.load(f)
     f.close()
 else:
     read_derivative()
     f = open(derivative_pickle, 'wb')
-    cPickle.dump(thedict, f, cPickle.HIGHEST_PROTOCOL)
+    pickle.dump(thedict, f, pickle.HIGHEST_PROTOCOL)
     f.close()
 
 # Create the manual look-up menu entry
