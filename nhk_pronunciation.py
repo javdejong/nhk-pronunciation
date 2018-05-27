@@ -6,6 +6,7 @@ import codecs
 import os
 import cPickle
 import time
+from string import punctuation
 
 from aqt import mw
 from aqt.qt import *
@@ -13,6 +14,8 @@ from aqt.utils import showText
 
 import japanese
 import japanese.lookup
+from japanese.reading import MecabController
+import sys  
 
 
 # ************************************************
@@ -25,15 +28,11 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           'class="nasal"':    'style="color: red;"',
           '&#42780;': '&#42780;'}
 
-# The note type(s) that the plugin will act on.
-# Add your own note types here, for example: note_types = ["japanese", "subs"]
-note_types = ["japanese", "kanji"]
-
-# The field name(s) that the plugin will search for.
-# Add your own fields here, for example:
-# srcFields = ['Expression', 'Kanji']
-# dstFields = ['Pronunciation', 'Pitch Accent']
-srcFields = ['Expression', 'Kanji Word']
+# Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
+# You may also need to edit the multi_prons function if you edit this.
+#CHANGE srcFields TO 'Sentence' for adding accent to words in a sentence 
+#(note: this won't indicate prosody)
+srcFields = ['Expression']    
 dstFields = ['Pronunciation']
 
 # Regenerate readings even if they already exist?
@@ -58,15 +57,26 @@ AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','mid
 # The main dict used to store all entries
 thedict = {}
 
+hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+               u'あいうえおかきくけこさしすせそたちつてと' \
+               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+               u'わをんぁぃぅぇぉゃゅょっ'
+
+mecab = MecabController()
+               
+#see https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
+regex = ur'[^\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+'#+ (?=[A-Za-z ]+–)'
+#regex = ur'[\u3000-\u3039\u30fa\uff00-\uff65]+'
+jap_reg = re.compile(regex, re.U)
 
 # ************************************************
 #                  Helper functions              *
 # ************************************************
 def katakana_to_hiragana(to_translate):
-    hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
-               u'あいうえおかきくけこさしすせそたちつてと' \
-               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
-               u'わをんぁぃぅぇぉゃゅょっ'
+    #hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+    #           u'あいうえおかきくけこさしすせそたちつてと' \
+    #           u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+    #           u'わをんぁぃぅぇぉゃゅょっ'
     katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
                u'アイウエオカキクケコサシスセソタチツテト' \
                u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
@@ -74,6 +84,45 @@ def katakana_to_hiragana(to_translate):
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
     return to_translate.translate(translate_table)
+
+def no_kana(srcTxt):
+    #only removes at the end, since lots of words have kana in the middle
+    test = r'[' + hiragana + r']*$'
+    my_regex = re.compile(test, re.UNICODE)
+    new_text = re.sub(my_regex, '', srcTxt)
+    
+    return new_text
+
+def nix_punctuation(s):
+    return ''.join(c for c in s if c not in punctuation)
+
+def multi_prons(src, srcIdx):
+    """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash), gets the pronunciation
+    for each one. 
+    2) Also removes kana from words and re-searches, in order to get
+    all pronunciations (this gets around expressions that include grammar context).
+    3) iterates through all words in the expression, like the readings add-on does"""
+    srcTxt_all = []
+    #loop through the list of words in the field禁止、話が元気, 何？日本語。歩行者
+    if srcIdx == 'Expression':
+        separated = re.sub(jap_reg, ' ', src) #multi_replace(src,'・。？,、.?「」',' ').split()
+        separated2 = nix_punctuation(separated)
+        srcTxt_all = separated2.replace('・', ' ').split(' ')
+    elif srcIdx == 'Sentence':
+        #use the japanese support/reading extension/mecab if you prefer
+        srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
+    
+    prons = []
+    for srcTxt in srcTxt_all:
+        prons.extend(getPronunciations(srcTxt))
+        #remove kana - but why add to the expr if original search is not empty?
+        kanjiTxt = no_kana(srcTxt)
+        if srcTxt != kanjiTxt:
+            prons.extend(getPronunciations(kanjiTxt))   
+    
+    fields_dest = "  ***  ".join(prons)#should join prons
+    
+    return fields_dest
 
 
 # ************************************************
@@ -310,26 +359,27 @@ def get_src_dst_fields(fields):
 def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
-    # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in model['name'].lower() for nt in note_types):
-        return fields
+    #if "japanese" not in model['name'].lower():
+    #    return fields
 
     src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
 
-    if src is None or dst is None:
+    if not src or dst is None:
         return fields
 
     # Only add the pronunciation if there's not already one in the pronunciation field
     if not fields[dst]:
-        prons = getPronunciations(fields[src])
-        fields[dst] = "  ***  ".join(prons)
+        fields[dst] = multi_prons(fields[src], src)
+        #original:
+        #prons = getPronunciations(fields[src])
+        #fields[dst] = "  ***  ".join(prons)
 
     return fields
 
 def add_pronunciation_focusLost(flag, n, fidx):
-    # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in n.model()['name'].lower() for nt in note_types):
-        return flag
+    # japanese model?
+    #if "japanese" not in n.model()['name'].lower():
+    #    return flag
 
     from aqt import mw
     fields = mw.col.models.fieldNames(n.model())
@@ -354,8 +404,9 @@ def add_pronunciation_focusLost(flag, n, fidx):
 
     # update field
     try:
-        prons = getPronunciations(srcTxt)
-        n[dst] = "  ***  ".join(prons)
+        n[dst] = multi_prons(srcTxt, src)
+        #prons = getPronunciations(srcTxt)
+        #n[dst] = "  ***  ".join(prons)
     except Exception, e:
         raise
     return True
@@ -366,14 +417,12 @@ def regeneratePronunciations(nids):
     mw.progress.start()
     for nid in nids:
         note = mw.col.getNote(nid)
-
-        # Check if this is a supported note type. If it is not, skip.
-        if not any(nt.lower() in note.model()['name'].lower() for nt in note_types):
-            continue
+        #if "japanese" not in note.model()['name'].lower():
+        #    continue
 
         src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
 
-        if src is None or dst is None:
+        if not src or dst is None:
             continue
 
         if note[dst] and not regenerate_readings:
@@ -383,9 +432,11 @@ def regeneratePronunciations(nids):
         srcTxt = mw.col.media.strip(note[src])
         if not srcTxt.strip():
             continue
-
-        prons = getPronunciations(srcTxt.strip())
-        note[dst] = "  ***  ".join(prons)
+        
+        #original:
+        #prons = getPronunciations(srcTxt)
+        #note[dst] = "  ***  ".join(prons)
+        note[dst] = multi_prons(srcTxt, src)
 
         note.flush()
     mw.progress.finish()
@@ -416,6 +467,10 @@ else:
     cPickle.dump(thedict, f, cPickle.HIGHEST_PROTOCOL)
     f.close()
 
+#fix encoding:
+reload(sys)  
+sys.setdefaultencoding('utf8')
+    
 # Create the manual look-up menu entry
 createMenu()
 
