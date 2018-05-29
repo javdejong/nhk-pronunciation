@@ -29,9 +29,6 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           '&#42780;': '&#42780;'}
 
 # Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
-# You may also need to edit the multi_prons function if you edit this.
-#CHANGE srcFields TO 'Sentence' for adding accent to words in a sentence 
-#(note: this won't indicate prosody)
 srcFields = ['Expression']    
 dstFields = ['Pronunciation']
 
@@ -96,7 +93,25 @@ def no_kana(srcTxt):
 def nix_punctuation(s):
     return ''.join(c for c in s if c not in punctuation)
 
-def multi_prons(src, srcIdx):
+def multi_prons_helper(srcTxt_all):
+    prons = []
+    hits = 0
+    for srcTxt in srcTxt_all:
+        new_prons = getPronunciations(srcTxt)
+        if new_prons:
+            hits = hits + 1
+        prons.extend(new_prons)
+        #remove kana - but why add to the expr if original search is not empty?
+        kanjiTxt = no_kana(srcTxt)
+        if srcTxt != kanjiTxt:
+            new_stripped_prons = getPronunciations(kanjiTxt)
+            if new_stripped_prons and not new_prons:
+                hits = hits + 1
+            prons.extend(new_stripped_prons)
+            
+    return prons, hits
+    
+def multi_prons(src):
     """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash), gets the pronunciation
     for each one. 
     2) Also removes kana from words and re-searches, in order to get
@@ -104,21 +119,15 @@ def multi_prons(src, srcIdx):
     3) iterates through all words in the expression, like the readings add-on does"""
     srcTxt_all = []
     #loop through the list of words in the field禁止、話が元気, 何？日本語。歩行者
-    if srcIdx == 'Expression':
-        separated = re.sub(jap_reg, ' ', src) #multi_replace(src,'・。？,、.?「」',' ').split()
-        separated2 = nix_punctuation(separated)
-        srcTxt_all = separated2.replace('・', ' ').split(' ')
-    elif srcIdx == 'Sentence':
-        #use the japanese support/reading extension/mecab if you prefer
-        srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
+    separated = re.sub(jap_reg, ' ', src) #multi_replace(src,'・。？,、.?「」',' ').split()
+    separated2 = nix_punctuation(separated)
+    srcTxt_all = separated2.replace('・', ' ').split(' ')
+    prons, hits = multi_prons_helper(srcTxt_all)
     
-    prons = []
-    for srcTxt in srcTxt_all:
-        prons.extend(getPronunciations(srcTxt))
-        #remove kana - but why add to the expr if original search is not empty?
-        kanjiTxt = no_kana(srcTxt)
-        if srcTxt != kanjiTxt:
-            prons.extend(getPronunciations(kanjiTxt))   
+    if hits < len(srcTxt_all):
+        srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
+        prons, hits = multi_prons_helper(srcTxt_all)
+ 
     
     fields_dest = "  ***  ".join(prons)#should join prons
     
@@ -369,7 +378,7 @@ def add_pronunciation_once(fields, model, data, n):
 
     # Only add the pronunciation if there's not already one in the pronunciation field
     if not fields[dst]:
-        fields[dst] = multi_prons(fields[src], src)
+        fields[dst] = multi_prons(fields[src])
         #original:
         #prons = getPronunciations(fields[src])
         #fields[dst] = "  ***  ".join(prons)
@@ -404,7 +413,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
 
     # update field
     try:
-        n[dst] = multi_prons(srcTxt, src)
+        n[dst] = multi_prons(srcTxt)
         #prons = getPronunciations(srcTxt)
         #n[dst] = "  ***  ".join(prons)
     except Exception, e:
@@ -436,7 +445,7 @@ def regeneratePronunciations(nids):
         #original:
         #prons = getPronunciations(srcTxt)
         #note[dst] = "  ***  ".join(prons)
-        note[dst] = multi_prons(srcTxt, src)
+        note[dst] = multi_prons(srcTxt)
 
         note.flush()
     mw.progress.finish()
