@@ -101,13 +101,12 @@ def multi_prons_helper(srcTxt_all):
         if new_prons:
             hits = hits + 1
         prons.extend(new_prons)
-        #remove kana - but why add to the expr if original search is not empty?
         kanjiTxt = no_kana(srcTxt)
-        if srcTxt != kanjiTxt:
+        if srcTxt != kanjiTxt and not new_prons:
             new_stripped_prons = getPronunciations(kanjiTxt)
-            if new_stripped_prons and not new_prons:
+            if new_stripped_prons:
                 hits = hits + 1
-            prons.extend(new_stripped_prons)
+                prons.extend(new_stripped_prons)
             
     return prons, hits
     
@@ -118,8 +117,8 @@ def multi_prons(src):
     all pronunciations (this gets around expressions that include grammar context).
     3) iterates through all words in the expression, like the readings add-on does"""
     srcTxt_all = []
-    #loop through the list of words in the field禁止、話が元気, 何？日本語。歩行者
-    separated = re.sub(jap_reg, ' ', src) #multi_replace(src,'・。？,、.?「」',' ').split()
+    #loop through the list of words in the field
+    separated = re.sub(jap_reg, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
     prons, hits = multi_prons_helper(srcTxt_all)
@@ -129,7 +128,7 @@ def multi_prons(src):
         prons, hits = multi_prons_helper(srcTxt_all)
  
     
-    fields_dest = "  ***  ".join(prons)#should join prons
+    fields_dest = "  ***  ".join(prons)
     
     return fields_dest
 
