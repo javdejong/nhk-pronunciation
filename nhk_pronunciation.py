@@ -7,6 +7,7 @@ import os
 import cPickle
 import time
 from string import punctuation
+from bs4 import BeautifulSoup
 
 from aqt import mw
 from aqt.qt import *
@@ -84,6 +85,8 @@ def katakana_to_hiragana(to_translate):
 
 def no_kana(srcTxt):
     #only removes at the end, since lots of words have kana in the middle
+    #do you need this? Is it because this is fast?
+    #BUG: this returns just 料 for 料理する
     test = r'[' + hiragana + r']*$'
     my_regex = re.compile(test, re.UNICODE)
     new_text = re.sub(my_regex, '', srcTxt)
@@ -95,20 +98,18 @@ def nix_punctuation(s):
 
 def multi_prons_helper(srcTxt_all):
     prons = []
-    hits = 0
     for srcTxt in srcTxt_all:
-        new_prons = getPronunciations(srcTxt)
-        if new_prons:
-            hits = hits + 1
-        prons.extend(new_prons)
         kanjiTxt = no_kana(srcTxt)
-        if srcTxt != kanjiTxt and not new_prons:
+        #prons.extend(kanjiTxt)#########################temp
+        new_prons = getPronunciations(srcTxt)       
+        if new_prons:
+            prons.extend(new_prons)
+        elif srcTxt != kanjiTxt:
             new_stripped_prons = getPronunciations(kanjiTxt)
             if new_stripped_prons:
-                hits = hits + 1
                 prons.extend(new_stripped_prons)
             
-    return prons, hits
+    return prons
     
 def multi_prons(src):
     """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash), gets the pronunciation
@@ -116,17 +117,23 @@ def multi_prons(src):
     2) Also removes kana from words and re-searches, in order to get
     all pronunciations (this gets around expressions that include grammar context).
     3) iterates through all words in the expression, like the readings add-on does"""
+    #NOTE: doesn't handle conjugations 
+    #(and probably won't until/unless I integrate it with OJAD)
     srcTxt_all = []
+    #remove html formatting like color, which Anki uses
+    soup = BeautifulSoup(src, "html.parser")
+    src = soup.get_text()
     #loop through the list of words in the field
     separated = re.sub(jap_reg, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
-    prons, hits = multi_prons_helper(srcTxt_all)
-    
-    if hits < len(srcTxt_all):
+    prons = multi_prons_helper(srcTxt_all)
+
+    #Without this (or a variation of this) 料理する and other sentences can't be parsed
+    if len(prons) < len(srcTxt_all):
         srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
-        prons, hits = multi_prons_helper(srcTxt_all)
- 
+        prons = multi_prons_helper(srcTxt_all)
+
     
     fields_dest = "  ***  ".join(prons)
     
