@@ -90,18 +90,19 @@ def no_kana(srcTxt):
 def nix_punctuation(text):
     return ''.join(char for char in text if char not in punctuation)
 
-def multi_lookup_helper(srcTxt_all):
+def multi_lookup_helper(srcTxt_all, lookup_func):
     """
-    Gets the pronunciation for both the raw text and it without okurigana
+    Gets the pronunciation (or another type of dictionary lookup)
+    for both the raw text and it without okurigana
     """
     prons = []
     for srcTxt in srcTxt_all:
         kanjiTxt = no_kana(srcTxt)
-        new_prons = getPronunciations(srcTxt)       
+        new_prons = lookup_func(srcTxt)       
         if new_prons:
             prons.extend(new_prons)
         elif srcTxt != kanjiTxt:
-            new_stripped_prons = getPronunciations(kanjiTxt)
+            new_stripped_prons = lookup_func(kanjiTxt)
             if new_stripped_prons:
                 prons.extend(new_stripped_prons)
             
@@ -109,7 +110,7 @@ def multi_lookup_helper(srcTxt_all):
 
 def japanese_splitter(src):
     """
-    Helper function for multi_lookup(src)
+    Helper function for multi_lookup(src, lookup_func)
     but is its own function for modularity
     
     1) If multiple words are separated by a ・ (Japanese slash)
@@ -125,7 +126,7 @@ def japanese_splitter(src):
     
     return srcTxt_all
 
-def multi_lookup(src):
+def multi_lookup(src, lookup_func, separator = "  ***  "):
     """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash)
     or other punctuation, gets the pronunciation for each word. 
     2) Removes useless kana from words and re-searches, in order to get
@@ -134,15 +135,16 @@ def multi_lookup(src):
     #NOTE: doesn't handle conjugations 
     #(and probably won't until/unless I integrate it with OJAD)
     srcTxt_all = japanese_splitter(src)
-    prons = multi_lookup_helper(srcTxt_all)
+    prons = multi_lookup_helper(srcTxt_all, lookup_func)
 
     #This is needed to parse things like 料理する and other sentences
     if len(prons) < len(srcTxt_all):
+        #parsing with mecab like the Japanese support addon does
         srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
-        prons = multi_lookup_helper(srcTxt_all)
+        prons = multi_lookup_helper(srcTxt_all, lookup_func)
 
     
-    fields_dest = "  ***  ".join(prons)
+    fields_dest = separator.join(prons)
     
     return fields_dest
 
@@ -391,7 +393,7 @@ def add_pronunciation_once(fields, model, data, n):
 
     # Only add the pronunciation if there's not already one in the pronunciation field
     if not fields[dst]:
-        fields[dst] = multi_lookup(fields[src])
+        fields[dst] = multi_lookup(fields[src], getPronunciations)
 
     return fields
 
@@ -423,7 +425,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
 
     # update field
     try:
-        n[dst] = multi_lookup(srcTxt)
+        n[dst] = multi_lookup(srcTxt, getPronunciations)
     except Exception, e:
         raise
     return True
@@ -450,7 +452,7 @@ def regeneratePronunciations(nids):
         if not srcTxt.strip():
             continue
         
-        note[dst] = multi_lookup(srcTxt)
+        note[dst] = multi_lookup(srcTxt, getPronunciations)
 
         note.flush()
     mw.progress.finish()
