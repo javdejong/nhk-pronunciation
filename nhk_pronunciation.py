@@ -106,15 +106,16 @@ def multi_lookup_helper(srcTxt_all):
                 prons.extend(new_stripped_prons)
             
     return prons
+
+def japanese_splitter(src):
+    """
+    Helper function for multi_lookup(src)
+    but made its own function for modularity
     
-def multi_lookup(src):
-    """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash)
+    1) If multiple words are separated by a ・ (Japanese slash)
     or other punctuation, gets the pronunciation for each word. 
     2) Removes useless kana from words and re-searches, in order to get
-    all pronunciations (this gets around expressions that include grammar context).
-    3) Iterates through all words in the expression, like the Japanese support readings add-on"""
-    #NOTE: doesn't handle conjugations 
-    #(and probably won't until/unless I integrate it with OJAD)
+    all pronunciations (this gets around expressions that include grammar context)."""
     srcTxt_all = []
     #remove html formatting like color, which Anki uses
     soup = BeautifulSoup(src, "html.parser")
@@ -123,6 +124,18 @@ def multi_lookup(src):
     separated = re.sub(jap_reg, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
+    
+    return srcTxt_all
+
+def multi_lookup(src):
+    """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash)
+    or other punctuation, gets the pronunciation for each word. 
+    2) Removes useless kana from words and re-searches, in order to get
+    all pronunciations (this gets around expressions that include grammar context).
+    3) Iterates through all words in the expression, like the Japanese support readings add-on"""
+    #NOTE: doesn't handle conjugations 
+    #(and probably won't until/unless I integrate it with OJAD)
+    srcTxt_all = japanese_splitter(src)
     prons = multi_lookup_helper(srcTxt_all)
 
     #This is needed to parse things like 料理する and other sentences
