@@ -110,12 +110,10 @@ def multi_lookup_helper(srcTxt_all):
 def japanese_splitter(src):
     """
     Helper function for multi_lookup(src)
-    but made its own function for modularity
+    but is its own function for modularity
     
     1) If multiple words are separated by a ・ (Japanese slash)
-    or other punctuation, gets the pronunciation for each word. 
-    2) Removes useless kana from words and re-searches, in order to get
-    all pronunciations (this gets around expressions that include grammar context)."""
+    or other punctuation, splits into separate words."""
     srcTxt_all = []
     #remove html formatting like color, which Anki uses
     soup = BeautifulSoup(src, "html.parser")
