@@ -59,48 +59,44 @@ hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴ�
                u'あいうえおかきくけこさしすせそたちつてと' \
                u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
                u'わをんぁぃぅぇぉゃゅょっ'
-
+katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
+               u'アイウエオカキクケコサシスセソタチツテト' \
+               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
+               u'ワヲンァィゥェォャュョッ'
 mecab = MecabController()
                
-#see https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
+#Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
 regex = ur'[^\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+'#+ (?=[A-Za-z ]+–)'
-#regex = ur'[\u3000-\u3039\u30fa\uff00-\uff65]+'
 jap_reg = re.compile(regex, re.U)
 
 # ************************************************
 #                  Helper functions              *
 # ************************************************
 def katakana_to_hiragana(to_translate):
-    #hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
-    #           u'あいうえおかきくけこさしすせそたちつてと' \
-    #           u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
-    #           u'わをんぁぃぅぇぉゃゅょっ'
-    katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
-               u'アイウエオカキクケコサシスセソタチツテト' \
-               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
-               u'ワヲンァィゥェォャュョッ'
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
     return to_translate.translate(translate_table)
 
 def no_kana(srcTxt):
-    #only removes at the end, since lots of words have kana in the middle
-    #do you need this? Is it because this is fast?
-    #BUG: this returns just 料 for 料理する
-    test = r'[' + hiragana + r']*$'
-    my_regex = re.compile(test, re.UNICODE)
-    new_text = re.sub(my_regex, '', srcTxt)
+    """removes okurigana at the end of string srcTxt
     
-    return new_text
+    To avoid creating fake words which will give failed lookups,
+    ignores kana in the middle of the word since lots of real 
+    words have kana in the middle."""
+    kana = r'[' + hiragana + r']*$'
+    kana_compiled = re.compile(kana, re.UNICODE)
+    return re.sub(kana_compiled, '', srcTxt)
 
-def nix_punctuation(s):
-    return ''.join(c for c in s if c not in punctuation)
+def nix_punctuation(text):
+    return ''.join(char for char in text if char not in punctuation)
 
-def multi_prons_helper(srcTxt_all):
+def multi_lookup_helper(srcTxt_all):
+    """
+    Gets the pronunciation for both the raw text and it without okurigana
+    """
     prons = []
     for srcTxt in srcTxt_all:
         kanjiTxt = no_kana(srcTxt)
-        #prons.extend(kanjiTxt)#########################temp
         new_prons = getPronunciations(srcTxt)       
         if new_prons:
             prons.extend(new_prons)
@@ -111,28 +107,28 @@ def multi_prons_helper(srcTxt_all):
             
     return prons
     
-def multi_prons(src):
-    """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash), gets the pronunciation
-    for each one. 
-    2) Also removes kana from words and re-searches, in order to get
+def multi_lookup(src):
+    """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash)
+    or other punctuation, gets the pronunciation for each word. 
+    2) Removes useless kana from words and re-searches, in order to get
     all pronunciations (this gets around expressions that include grammar context).
-    3) iterates through all words in the expression, like the readings add-on does"""
+    3) Iterates through all words in the expression, like the Japanese support readings add-on"""
     #NOTE: doesn't handle conjugations 
     #(and probably won't until/unless I integrate it with OJAD)
     srcTxt_all = []
     #remove html formatting like color, which Anki uses
     soup = BeautifulSoup(src, "html.parser")
     src = soup.get_text()
-    #loop through the list of words in the field
+    #Separate the src field into individual words
     separated = re.sub(jap_reg, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
-    prons = multi_prons_helper(srcTxt_all)
+    prons = multi_lookup_helper(srcTxt_all)
 
-    #Without this (or a variation of this) 料理する and other sentences can't be parsed
+    #This is needed to parse things like 料理する and other sentences
     if len(prons) < len(srcTxt_all):
         srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
-        prons = multi_prons_helper(srcTxt_all)
+        prons = multi_lookup_helper(srcTxt_all)
 
     
     fields_dest = "  ***  ".join(prons)
@@ -384,10 +380,7 @@ def add_pronunciation_once(fields, model, data, n):
 
     # Only add the pronunciation if there's not already one in the pronunciation field
     if not fields[dst]:
-        fields[dst] = multi_prons(fields[src])
-        #original:
-        #prons = getPronunciations(fields[src])
-        #fields[dst] = "  ***  ".join(prons)
+        fields[dst] = multi_lookup(fields[src])
 
     return fields
 
@@ -419,9 +412,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
 
     # update field
     try:
-        n[dst] = multi_prons(srcTxt)
-        #prons = getPronunciations(srcTxt)
-        #n[dst] = "  ***  ".join(prons)
+        n[dst] = multi_lookup(srcTxt)
     except Exception, e:
         raise
     return True
@@ -448,10 +439,7 @@ def regeneratePronunciations(nids):
         if not srcTxt.strip():
             continue
         
-        #original:
-        #prons = getPronunciations(srcTxt)
-        #note[dst] = "  ***  ".join(prons)
-        note[dst] = multi_prons(srcTxt)
+        note[dst] = multi_lookup(srcTxt)
 
         note.flush()
     mw.progress.finish()
