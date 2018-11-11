@@ -67,7 +67,7 @@ mecab = MecabController()
                
 #Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
 regex = ur'[^\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+'#+ (?=[A-Za-z ]+–)'
-jap_reg = re.compile(regex, re.U)
+jp_regex = re.compile(regex, re.U)
 
 # ************************************************
 #                  Helper functions              *
@@ -113,14 +113,14 @@ def japanese_splitter(src):
     Helper function for multi_lookup(src, lookup_func)
     but is its own function for modularity
     
-    1) If multiple words are separated by a ・ (Japanese slash)
+    If multiple words are separated by a ・ (Japanese slash)
     or other punctuation, splits into separate words."""
     srcTxt_all = []
     #remove html formatting like color, which Anki uses
     soup = BeautifulSoup(src, "html.parser")
     src = soup.get_text()
     #Separate the src field into individual words
-    separated = re.sub(jap_reg, ' ', src)
+    separated = re.sub(jp_regex, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
     
@@ -133,13 +133,17 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
     all pronunciations (this gets around expressions that include grammar context).
     3) Iterates through all words in the expression, like the Japanese support readings add-on"""
     #NOTE: doesn't handle conjugations 
-    #(and probably won't until/unless I integrate it with OJAD)
+    #(and probably won't until/unless it is integrated with OJAD)
     srcTxt_all = japanese_splitter(src)
     prons = multi_lookup_helper(srcTxt_all, lookup_func)
 
-    #This is needed to parse things like 料理する and other sentences
+    """If not all words could be looked up,
+    #try treating the text as a sentence and then parsing
+    #(this is both a backup to test for bad splitting, although
+    #mecab tends to split too much; and the only way to parse words in sentences)"""
     if len(prons) < len(srcTxt_all):
-        #parsing with mecab like the Japanese support addon does
+        #Parsing with mecab like the Japanese support addon does,
+        #but this filters out the generated brackets and splits the returned text by word
         srcTxt_all = re.sub(r'\[.*?\].*?\s+', ' ', mecab.reading(src)).split("[")[0].split(" ")
         prons = multi_lookup_helper(srcTxt_all, lookup_func)
 
