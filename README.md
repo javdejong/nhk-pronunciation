@@ -8,3 +8,4 @@ Installation:
 1. Make sure you have the [NHK accent plugin](https://ankiweb.net/shared/info/932119536) installed already.
 2. Open your Anki addons folder by going to Tools -> Add-ons - Open Add-ons Folder in Anki.
 3. Copy the file nhk_pronunciation.py into your addons folder, overwriting the old nhk_pronunciation.py file.
+4. You need to copy the bs4 folder too if you don't have one. This dependency may by removed in the future, but for now you need it.
