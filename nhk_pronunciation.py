@@ -1,24 +1,29 @@
-from collections import namedtuple
-from PyQt5.QtWidgets import *
+# -*- coding: utf-8 -*-
 
+from collections import namedtuple
+
+import io
 import re
 import os
-import pickle
+import sys
 import time
+
+if sys.version_info.major == 3:
+    from PyQt5.QtWidgets import *
+    import pickle
+else:
+    import cPickle as pickle
 
 from aqt import mw
 from aqt.qt import *
 from aqt.utils import showText
-
-
-config = mw.addonManager.getConfig(__name__)
 
 # ************************************************
 #                Global Variables                *
 # ************************************************
 
 # Paths to the database files and this particular file
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.normpath(__file__))
 thisfile = os.path.join(dir_path, "nhk_pronunciation.py")
 derivative_database = os.path.join(dir_path, "nhk_pronunciation.csv")
 derivative_pickle = os.path.join(dir_path, "nhk_pronunciation.pickle")
@@ -31,18 +36,24 @@ AccentEntry = namedtuple('AccentEntry', ['NID','ID','WAVname','K_FLD','ACT','mid
 thedict = {}
 
 
+if sys.version_info.major == 2:
+    import json
+    config = json.load(io.open(os.path.join(dir_path, 'nhk_pronunciation_config.json'), 'r'))
+else:
+    config = mw.addonManager.getConfig(__name__)
+
 # ************************************************
 #                  Helper functions              *
 # ************************************************
 def katakana_to_hiragana(to_translate):
-    hiragana = 'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
-               'あいうえおかきくけこさしすせそたちつてと' \
-               'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
-               'わをんぁぃぅぇぉゃゅょっ'
-    katakana = 'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
-               'アイウエオカキクケコサシスセソタチツテト' \
-               'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
-               'ワヲンァィゥェォャュョッ'
+    hiragana = u'がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ' \
+               u'あいうえおかきくけこさしすせそたちつてと' \
+               u'なにぬねのはひふへほまみむめもやゆよらりるれろ' \
+               u'わをんぁぃぅぇぉゃゅょっ'
+    katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ' \
+               u'アイウエオカキクケコサシスセソタチツテト' \
+               u'ナニヌネノハヒフヘホマミムメモヤユヨラリルレロ' \
+               u'ワヲンァィゥェォャュョッ'
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
     return to_translate.translate(translate_table)
@@ -122,7 +133,7 @@ def build_database():
     tempdict = {}
     entries = []
 
-    f = open(accent_database, 'r', encoding="utf-8")
+    f = io.open(accent_database, 'r', encoding="utf-8")
     for line in f:
         line = line.strip()
         substrs = re.findall(r'(\{.*?,.*?\})', line)
@@ -146,7 +157,7 @@ def build_database():
             else:
                 tempdict[key] = [kanapron]
 
-    o = open(derivative_database, 'w', encoding="utf-8")
+    o = io.open(derivative_database, 'w', encoding="utf-8")
 
     for key in tempdict.keys():
         for kana, pron in tempdict[key]:
@@ -157,7 +168,7 @@ def build_database():
 
 def read_derivative():
     """ Read the derivative file to memory """
-    f = open(derivative_database, 'r', encoding="utf-8")
+    f = io.open(derivative_database, 'r', encoding="utf-8")
 
     for line in f:
         key, kana, pron = line.strip().split("\t")
@@ -380,12 +391,12 @@ if (os.path.exists(accent_database) and not os.path.exists(derivative_database))
 # If a pickle exists of the derivative file, use that. Otherwise, read from the derivative file and generate a pickle.
 if  (os.path.exists(derivative_pickle) and
     os.stat(derivative_pickle).st_mtime > os.stat(derivative_database).st_mtime):
-    f = open(derivative_pickle, 'rb')
+    f = io.open(derivative_pickle, 'rb')
     thedict = pickle.load(f)
     f.close()
 else:
     read_derivative()
-    f = open(derivative_pickle, 'wb')
+    f = io.open(derivative_pickle, 'wb')
     pickle.dump(thedict, f, pickle.HIGHEST_PROTOCOL)
     f.close()
 
