@@ -295,7 +295,8 @@ def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
     # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in model['name'].lower() for nt in config["noteTypes"]):
+    # If no note type has been specified, we always continue the lookup proces.
+    if config["noteTypes"] and not any(nt.lower() in model['name'].lower() for nt in config["noteTypes"]):
         return fields
 
     src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
@@ -312,7 +313,8 @@ def add_pronunciation_once(fields, model, data, n):
 
 def add_pronunciation_focusLost(flag, n, fidx):
     # Check if this is a supported note type. If it is not, return.
-    if not any(nt.lower() in n.model()['name'].lower() for nt in config["noteTypes"]):
+    # If no note type has been specified, we always continue the lookup proces.
+    if config["noteTypes"] and not any(nt.lower() in n.model()['name'].lower() for nt in config["noteTypes"]):
         return flag
 
     from aqt import mw
@@ -352,7 +354,8 @@ def regeneratePronunciations(nids):
         note = mw.col.getNote(nid)
 
         # Check if this is a supported note type. If it is not, skip.
-        if not any(nt.lower() in note.model()['name'].lower() for nt in config["noteTypes"]):
+        # If no note type has been specified, we always continue the lookup proces.
+        if config["noteTypes"] and not any(nt.lower() in note.model()['name'].lower() for nt in config["noteTypes"]):
             continue
 
         src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
