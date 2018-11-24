@@ -37,15 +37,15 @@ tail_color = 'orange'
 mid_color = 'blue'
 
 # Regenerate readings even if they already exist?
-regenerate_readings = False
+regenerate_readings = True
 
 # Add color to the expression to indicate accent? (Default: False)
 #(note: requires modify_expressions to be True)
 global colorize 
-colorize = False
+colorize = True
 
 # Replace expressions with citation forms of relevant terms (Default: False)
-modify_expressions = False
+modify_expressions = True
 #delimiter to use between each word in a corrected expression (Default: '・')
 modification_delimiter = '・' # only used if modify_expressions is True
 
@@ -89,12 +89,6 @@ particles_etc = ['は','が','も','し','を','に','と','さ','へ','まで',
 
 j_symb = '・、※【】「」〒◎×〃゜『』《》〜〽。〄〇〈〉〓〔〕〖〗〘 〙〚〛〝 〞〟〠〡〢〣〥〦〧〨〫  〬  〭  〮〯〶〷〸〹〺〻〼〾〿'
 
-#set format for mecab before creating a MecabController (f[6] gets the citation form)
-japanese.reading.mecabArgs = ['--node-format=%f[6] ', '--eos-format=\n',
-            '--unk-format=%m[] ']
-            
-reader = MecabController()
-
 #Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
 regex = ur'[^\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+'#+ (?=[A-Za-z ]+–)'
 jp_regex = re.compile(regex, re.U)
@@ -127,7 +121,14 @@ def test_cases():
     pass
     
 def reading_new(expr):
-    reader.ensureOpen()
+    #set format for mecab before creating a MecabController (f[6] gets the citation form)
+    old_args = japanese.reading.mecabArgs
+    japanese.reading.mecabArgs = ['--node-format=%f[6] ', '--eos-format=\n',
+                '--unk-format=%m[] ']
+    reader = MecabController()
+    reader.ensureOpen() #need to use this function before resetting args, since it uses them
+    japanese.reading.mecabArgs = old_args #need to reset it so you don't break the other addon
+    
     expr = escapeText(expr)
     reader.mecab.stdin.write(expr.encode("euc-jp", "ignore") + b'\n')
     reader.mecab.stdin.flush()
@@ -166,14 +167,13 @@ def katakana_to_hiragana(to_translate):
 def nix_punctuation(text):
     return ''.join(char for char in text if char not in punctuation)
 
-def multi_lookup_helper(srcTxt_all, lookup_func, orig):
+def multi_lookup_helper(srcTxt_all, lookup_func):
     """
     Gets the pronunciation (or another type of dictionary lookup)
     for both the raw text and it without okurigana
     
     param list of strings srcTxt_all terms to look up with lookup_func
     param function lookup_func dictionary lookup function to send elements of srcTxt_all to
-    param string orig the original text that srcTxt_all was parsed from
     """
     prons = []
     #return True if all succeeded; good for skipping mecab (avoiding possibly oversplitting)
@@ -279,25 +279,26 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
     prons, colorized_words, srcTxt_all = [], [], []
     srcTxt_all = japanese_splitter(src)
 
-    colorized_words, prons, all_hit = multi_lookup_helper(srcTxt_all, lookup_func, src)
+    colorized_words, prons, all_hit = multi_lookup_helper(srcTxt_all, lookup_func)
     
-    #if you couldn't split the words perfectly with a simple split, use mecab:
-    if not all_hit:
-        if len(srcTxt_all) == 1 and not prons: is_sentence = True
-        
-        #iterate through and replace 々 with the kanji preceding it
-        new_src = src
-        char_dex = 1
-        for char in src:
-            if char_dex == len(src): break
-            if src[char_dex] == '々': new_src = src[:char_dex] + char + src[char_dex+1:]
-            char_dex += 1
+    #if you couldn't split the words perfectly with a simple split, use mecab
+    #or just use it anyway
+    #if not all_hit:
+    if len(srcTxt_all) == 1 and not prons: is_sentence = True
+    
+    #iterate through and replace 々 with the kanji preceding it
+    new_src = src
+    char_dex = 1
+    for char in src:
+        if char_dex == len(src): break
+        if src[char_dex] == '々': new_src = src[:char_dex] + char + src[char_dex+1:]
+        char_dex += 1
 
-        #parse with mecab and add new terms to the entries to look up
-        srcTxt_2 = reading_parser(reading_new(soup_maker(new_src)))
-        srcTxt_all.extend([term for term in srcTxt_2 if term not in srcTxt_all])
-        
-        colorized_words, prons, _ = multi_lookup_helper(srcTxt_all, lookup_func, src)
+    #parse with mecab and add new terms to the entries to look up
+    srcTxt_2 = reading_parser(reading_new(soup_maker(new_src)))
+    srcTxt_all.extend([term for term in srcTxt_2 if term not in srcTxt_all])
+    
+    colorized_words, prons, _ = multi_lookup_helper(srcTxt_all, lookup_func)
     
     #join words together with the designated separator; but give the original src
     #back if lookup failed or if color is turned off
