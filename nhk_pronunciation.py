@@ -37,15 +37,15 @@ tail_color = 'orange'
 mid_color = 'blue'
 
 # Regenerate readings even if they already exist?
-regenerate_readings = True
+regenerate_readings = False
 
 # Add color to the expression to indicate accent? (Default: False)
 #(note: requires modify_expressions to be True)
 global colorize 
-colorize = True
+colorize = False
 
 # Replace expressions with citation forms of relevant terms (Default: False)
-modify_expressions = True
+modify_expressions = False
 #delimiter to use between each word in a corrected expression (Default: '・')
 modification_delimiter = '・' # only used if modify_expressions is True
 
