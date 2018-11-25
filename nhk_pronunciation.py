@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 import re
 import codecs
 import os
@@ -13,9 +13,8 @@ from aqt import mw
 from aqt.qt import *
 from aqt.utils import showText
 
-import japanese.reading
-from japanese.reading import MecabController, mungeForPlatform, escapeText
-import sys  
+import sys, platform, subprocess, aqt.utils
+from anki.utils import stripHTML, isWin, isMac
 
 
 # ************************************************
@@ -37,15 +36,15 @@ tail_color = 'orange'
 mid_color = 'blue'
 
 # Regenerate readings even if they already exist?
-regenerate_readings = False
+regenerate_readings = True
 
 # Add color to the expression to indicate accent? (Default: False)
 #(note: requires modify_expressions to be True)
 global colorize 
-colorize = False
+colorize = True
 
 # Replace expressions with citation forms of relevant terms (Default: False)
-modify_expressions = False
+modify_expressions = True
 #delimiter to use between each word in a corrected expression (Default: '・')
 modification_delimiter = '・' # only used if modify_expressions is True
 
@@ -94,6 +93,77 @@ regex = ur'[^\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u
 jp_regex = re.compile(regex, re.U)
 
 # ************************************************
+#                  Japanese Support              *
+# ************************************************
+
+mecabArgs = ['--node-format=%f[6] ', '--eos-format=\n',
+            '--unk-format=%m[] ']
+
+def escapeText(text):
+    # strip characters that trip up kakasi/mecab
+    text = text.replace("\n", " ")
+    text = text.replace(u'\uff5e', "~")
+    text = re.sub("<br( /)?>", "---newline---", text)
+    text = stripHTML(text)
+    text = text.replace("---newline---", "<br>")
+    return text
+
+if sys.platform == "win32":
+    si = subprocess.STARTUPINFO()
+    try:
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    except:
+        si.dwFlags |= subprocess._subprocess.STARTF_USESHOWWINDOW
+else:
+    si = None
+
+# Mecab
+##########################################################################
+
+def mungeForPlatform(popen):
+    if isWin:
+        popen = [os.path.normpath(x) for x in popen]
+        popen[0] += ".exe"
+    elif not isMac:
+        popen[0] += ".lin"
+    return popen
+
+class MecabController(object):
+
+    def __init__(self):
+        self.mecab = None
+
+    def setup(self):
+        base = "../../addons/nhk_support/"
+        self.mecabCmd = mungeForPlatform(
+            [base + "mecab"] + mecabArgs + [
+                '-d', base, '-r', base + "mecabrc"])
+        os.environ['DYLD_LIBRARY_PATH'] = base
+        os.environ['LD_LIBRARY_PATH'] = base
+        if not isWin:
+            os.chmod(self.mecabCmd[0], 0o755)
+
+    def ensureOpen(self):
+        if not self.mecab:
+            self.setup()
+            try:
+                self.mecab = subprocess.Popen(
+                    self.mecabCmd, bufsize=-1, stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    startupinfo=si)
+            except OSError as e:
+                raise Exception(str(e) + ": Please ensure your Linux system has 64 bit binary support.")
+    
+    def reading(self, expr):
+        self.ensureOpen()
+        expr = escapeText(expr)
+        self.mecab.stdin.write(expr.encode("euc-jp", "ignore") + b'\n')
+        self.mecab.stdin.flush()
+        expr = self.mecab.stdout.readline().rstrip(b'\r\n').decode('euc-jp')
+        return expr
+
+
+# ************************************************
 #                  Helper functions              *
 # ************************************************
 def test_cases():
@@ -120,21 +190,6 @@ def test_cases():
     """
     pass
     
-def reading_new(expr):
-    #set format for mecab before creating a MecabController (f[6] gets the citation form)
-    old_args = japanese.reading.mecabArgs
-    japanese.reading.mecabArgs = ['--node-format=%f[6] ', '--eos-format=\n',
-                '--unk-format=%m[] ']
-    reader = MecabController()
-    reader.ensureOpen() #need to use this function before resetting args, since it uses them
-    japanese.reading.mecabArgs = old_args #need to reset it so you don't break the other addon
-    
-    expr = escapeText(expr)
-    reader.mecab.stdin.write(expr.encode("euc-jp", "ignore") + b'\n')
-    reader.mecab.stdin.flush()
-    expr = reader.mecab.stdout.readline().rstrip(b'\r\n').decode('euc-jp')
-    return expr
-
 """
 def new_mecab(mecabArgs_new):
     #command line testing function
@@ -193,8 +248,10 @@ def multi_lookup_helper(srcTxt_all, lookup_func):
         if not new_prons: new_prons = lookup_func(replace_dup(src))
         if new_prons:
             #choose only the first prons when assigning color to the word
-            if colorize: colorized_words.append(add_color(src, new_prons[0]))
-            prons.extend(new_prons)
+            if colorize and isinstance(new_prons,list): colorized_words.append(add_color(src, new_prons[0]))
+            #It can be either a list or a string, I guess
+            prons.extend(new_prons) if isinstance(new_prons,list) else prons.append(new_prons)
+            #prons.extend(new_prons)#I guess this separates the string into characters if it's 1 string
             return True
         #else just add the blank word, so you don't lose words
         if colorize: colorized_words.append(src)
@@ -295,10 +352,15 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
         char_dex += 1
 
     #parse with mecab and add new terms to the entries to look up
-    srcTxt_2 = reading_parser(reading_new(soup_maker(new_src)))
+    srcTxt_2 = reading_parser(reader.reading(soup_maker(new_src)))
     srcTxt_all.extend([term for term in srcTxt_2 if term not in srcTxt_all])
     
     colorized_words, prons, _ = multi_lookup_helper(srcTxt_all, lookup_func)
+    
+    #removed duplicates while preserving order 
+    #(can be caused by sentences, multiple forms of the same word, etc)
+    colorized_words = list(OrderedDict.fromkeys(colorized_words))
+    prons = list(OrderedDict.fromkeys(prons))
     
     #join words together with the designated separator; but give the original src
     #back if lookup failed or if color is turned off
@@ -672,3 +734,5 @@ addHook('editFocusLost', add_pronunciation_focusLost)
 
 # Bulk add
 addHook("browser.setupMenus", setupBrowserMenu)
+
+reader = MecabController()
