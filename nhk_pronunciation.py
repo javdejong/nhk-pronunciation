@@ -134,7 +134,7 @@ class MecabController(object):
         self.mecab = None
 
     def setup(self):
-        base = "../../addons/nhk_support/"
+        base = "../../addons/japanese/support/"
         self.mecabCmd = mungeForPlatform(
             [base + "mecab"] + mecabArgs + [
                 '-d', base, '-r', base + "mecabrc"])
