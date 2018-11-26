@@ -1,8 +1,9 @@
 # nhk-pronunciation
 Anki2 Add-On to look-up the pronunciation of Japanese expressions.
 
-2.0 version updated to add support for parsing fields containing multiple words, 
-whether they are inside sentences or separated by punctuation. Also adds bug fixes. See commits for list of changes.
+2.0 version updated to add support for parsing fields containing multiple/conjugated words, 
+whether they are inside sentences/fragments or separated by punctuation/symbols, etc. Also adds optional expression field auto-correction to 原形 (citation/dictionary form); accent-dependent colorization to automate [this process](https://www.youtube.com/watch?v=cy7GvwI7uV8&t=4m10s); and bug fixes. See commits for full details.
+
 
 Installation:
 1. Make sure you have the [NHK accent plugin](https://ankiweb.net/shared/info/932119536) installed already.
