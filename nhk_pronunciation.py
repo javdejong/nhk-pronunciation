@@ -28,7 +28,7 @@ styles = {'class="overline"': 'style="text-decoration:overline;"',
           '&#42780;': '&#42780;'}
 
 # Expression, Reading and Pronunciation fields (edit if the names of your fields are different)
-srcFields = ['Expression']    
+srcFields = ['Expression']
 dstFields = ['Pronunciation']
 unaccented_color = 'green'
 head_color = 'red'
@@ -40,7 +40,7 @@ regenerate_readings = True
 
 # Add color to the expression to indicate accent? (Default: False)
 #(note: requires modify_expressions to be True)
-global colorize 
+global colorize
 colorize = True
 
 # Replace expressions with citation forms of relevant terms (Default: False)
@@ -77,7 +77,7 @@ katakana = u'ガギグゲゴザジズゼゾダヂヅデドバビブベボパピ�
                u'ワヲンァィゥェォャュョッ'
 
 numerals = u"一二三四五六七八九十０１２３４５６７８９"
-               
+
 #conjugation elements and other elements to not worry about
 conj = ['お','ご','御','て','いる','ない','た','ば','ます','ん',
 'です','だ','たり','える','うる','ある','そう','がる','たい','する','じゃ','う',
@@ -88,7 +88,7 @@ particles_etc = ['は','が','も','し','を','に','と','さ','へ','まで',
 
 j_symb = '・、※【】「」〒◎×〃゜『』《》〜〽。〄〇〈〉〓〔〕〖〗〘 〙〚〛〝 〞〟〠〡〢〣〥〦〧〨〫  〬  〭  〮〯〶〷〸〹〺〻〼〾〿'
 
-#Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560               
+#Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560
 regex = ur'[^\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+'#+ (?=[A-Za-z ]+–)'
 jp_regex = re.compile(regex, re.U)
 
@@ -153,7 +153,7 @@ class MecabController(object):
                     startupinfo=si)
             except OSError as e:
                 raise Exception(str(e) + ": Please ensure your Linux system has 64 bit binary support.")
-    
+
     def reading(self, expr):
         self.ensureOpen()
         expr = escapeText(expr)
@@ -169,7 +169,7 @@ class MecabController(object):
 def test_cases():
     """
     List of things tested with via anki
-    
+
     something with 々 and kana after it 着々と
     easy sentence 庭には二羽鶏がいる
     sentence with words that can't be looked up
@@ -183,13 +183,13 @@ def test_cases():
     single word (citation form) 面白い
     word made up of useless things したがりませんか？
     2 words separated by ・　お支払い・前払い
-    3 words, all conjugated, with HTML formatting, at least 
+    3 words, all conjugated, with HTML formatting, at least
         one of which (the first) isn't in the accent dict in any form
     4 words, all lookup-able (but conjugated), no formatting, each with a 0-3 accent
     a compound word that mecab splits but that is actually in the dictionary 研究者
     """
     pass
-    
+
 """
 def new_mecab(mecabArgs_new):
     #command line testing function
@@ -213,7 +213,7 @@ def new_mecab(mecabArgs_new):
     return reading_new
 
 """
-    
+
 def katakana_to_hiragana(to_translate):
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
@@ -226,7 +226,7 @@ def multi_lookup_helper(srcTxt_all, lookup_func):
     """
     Gets the pronunciation (or another type of dictionary lookup)
     for both the raw text and it without okurigana
-    
+
     param list of strings srcTxt_all terms to look up with lookup_func
     param function lookup_func dictionary lookup function to send elements of srcTxt_all to
     """
@@ -256,21 +256,21 @@ def multi_lookup_helper(srcTxt_all, lookup_func):
         #else just add the blank word, so you don't lose words
         if colorize: colorized_words.append(src)
         return False
-    
+
     if srcTxt_all:
         for srcTxt in srcTxt_all:
-            if prons_n_colors(srcTxt): 
+            if prons_n_colors(srcTxt):
                 count += 1
                 continue
-    
+
     if srcTxt_all and count == len(srcTxt_all): all_hit = True
-    
+
     return colorized_words, prons, all_hit
 
 def japanese_splitter(src):
     """Helper function for multi_lookup(src, lookup_func)
     but is its own function for modularity
-    
+
     If multiple words are separated by a ・ (Japanese slash)
     or other punctuation, splits into separate words."""
     srcTxt_all = []
@@ -279,7 +279,7 @@ def japanese_splitter(src):
     separated = re.sub(jp_regex, ' ', src)
     separated2 = nix_punctuation(separated)
     srcTxt_all = separated2.replace('・', ' ').split(' ')
-    
+
     return srcTxt_all
 
 def soup_maker(text):
@@ -288,7 +288,7 @@ def soup_maker(text):
     soup = BeautifulSoup(text, "html.parser")
     src = soup.get_text()
     return src
-    
+
 def add_color(word, pron):
     """return HTML-encoded string c_word consisting of the given string word, + color"""
     non_mora_zi = r'[ぁぃぅぉゃゅょァィゥェォャュョ]'
@@ -307,23 +307,23 @@ def add_color(word, pron):
     else:
         #it's unaccented (平板)
         c_word = '<font color="' + unaccented_color + '">' + word + '</font>'
-    
+
     return c_word
 
 def reading_parser(raw_reading):
     """takes a string (possibly with multiple words)
     consisting of a mecab parse (separated by spaces) and returns just the base word
     Uses heuristics to eliminate conjugations and other excessive stuff mecab returns"""
-    base = [x for x in raw_reading.split(" ") if x and 
-    x not in conj and x not in particles_etc and 
+    base = [x for x in raw_reading.split(" ") if x and
+    x not in conj and x not in particles_etc and
     x not in j_symb and x not in punctuation and x not in numerals]
     only_japanese = [re.sub(jp_regex, '', a) for a in base]
-    
+
     return only_japanese
-        
+
 def multi_lookup(src, lookup_func, separator = "  ***  "):
     """Has 3 functions: 1) If multiple words are separated by a ・ (Japanese slash)
-    or other punctuation, gets the pronunciation for each word. 
+    or other punctuation, gets the pronunciation for each word.
     2) Parses words with Mecab if a simple split doesn't work
     3) adds color to the original expression and/or replaces it with citation forms"""
     do_colorize = False
@@ -337,12 +337,12 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
     srcTxt_all = japanese_splitter(src)
 
     colorized_words, prons, all_hit = multi_lookup_helper(srcTxt_all, lookup_func)
-    
+
     #if you couldn't split the words perfectly with a simple split, use mecab
     #or just use it anyway
     #if not all_hit:
     if len(srcTxt_all) == 1 and not prons: is_sentence = True
-    
+
     #iterate through and replace 々 with the kanji preceding it
     new_src = src
     char_dex = 1
@@ -354,19 +354,19 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
     #parse with mecab and add new terms to the entries to look up
     srcTxt_2 = reading_parser(reader.reading(soup_maker(new_src)))
     srcTxt_all.extend([term for term in srcTxt_2 if term not in srcTxt_all])
-    
+
     colorized_words, prons, _ = multi_lookup_helper(srcTxt_all, lookup_func)
-    
-    #removed duplicates while preserving order 
+
+    #removed duplicates while preserving order
     #(can be caused by sentences, multiple forms of the same word, etc)
     colorized_words = list(OrderedDict.fromkeys(colorized_words))
     prons = list(OrderedDict.fromkeys(prons))
-    
+
     #join words together with the designated separator; but give the original src
     #back if lookup failed or if color is turned off
     fields_dest = separator.join(prons)
-    
-    #determine what/how to return/replace expressions based on the set config 
+
+    #determine what/how to return/replace expressions based on the set config
     delim = modification_delimiter if modify_expressions else '・'
     if do_colorize:
         if is_sentence:
@@ -377,11 +377,11 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
             final_src = delim.join(colorized_words) if prons and colorized_words else src
     else:
         final_src = delim.join(srcTxt_all) if modify_expressions else src
-    
-    
+
+
     #NOTE: colorized_words will only have the words that have prons, and
     #will have them in the form that was able to get a hit, i.e. citation/dictionary form
-    
+
     return final_src, fields_dest
 
 
@@ -687,7 +687,7 @@ def regeneratePronunciations(nids):
         srcTxt = mw.col.media.strip(note[src])
         if not srcTxt.strip():
             continue
-        
+
         note[src], note[dst] = multi_lookup(srcTxt, getPronunciations)
 
         note.flush()
@@ -720,9 +720,9 @@ else:
     f.close()
 
 #fix encoding:
-reload(sys)  
+reload(sys)
 sys.setdefaultencoding('utf8')
-    
+
 # Create the manual look-up menu entry
 createMenu()
 
