@@ -5,9 +5,9 @@ import re
 import codecs
 import os
 import cPickle
+import sys
 import time
 from string import punctuation
-from bs4 import BeautifulSoup
 
 from aqt import mw
 from aqt.qt import *
@@ -15,6 +15,11 @@ from aqt.utils import showText
 
 import sys, platform, subprocess, aqt.utils
 from anki.utils import stripHTML, isWin, isMac
+
+if sys.version_info.major == 2:
+    from HTMLParser import HTMLParser
+else:
+    from html.parser import HTMLParser
 
 
 # ************************************************
@@ -50,6 +55,7 @@ modification_delimiter = '・' # only used if modify_expressions is True
 
 # Use hiragana instead of katakana for readings?
 pronunciation_hiragana = False
+
 
 # ************************************************
 #                Global Variables                *
@@ -274,7 +280,7 @@ def japanese_splitter(src):
     If multiple words are separated by a ・ (Japanese slash)
     or other punctuation, splits into separate words."""
     srcTxt_all = []
-    src = soup_maker(src)
+    src = strip_html_markup(src)
     #Separate the src field into individual words
     separated = re.sub(jp_regex, ' ', src)
     separated2 = nix_punctuation(separated)
@@ -282,17 +288,32 @@ def japanese_splitter(src):
 
     return srcTxt_all
 
-def soup_maker(text):
-    """para string text some text possibly formatted with HTML
-    returns string src , the plaintext parsed from Beautiful soup"""
-    soup = BeautifulSoup(text, "html.parser")
-    src = soup.get_text()
-    return src
+
+class HTMLTextExtractor(HTMLParser):
+        def __init__(self):
+            if issubclass(self.__class__, object):
+                super(HTMLTextExtractor, self).__init__()
+            else:
+                HTMLParser.__init__(self)
+            self.result = []
+
+        def handle_data(self, d):
+            self.result.append(d)
+
+        def get_text(self):
+            return ''.join(self.result)
+
+
+def strip_html_markup(text):
+    s = HTMLTextExtractor()
+    s.feed(html)
+    return s.get_text()
+
 
 def add_color(word, pron):
     """return HTML-encoded string c_word consisting of the given string word, + color"""
     non_mora_zi = r'[ぁぃぅぉゃゅょァィゥェォャュョ]'
-    raw_pron = soup_maker(pron)
+    raw_pron = strip_html_markup(pron)
     if "ꜜ" in raw_pron:
         #then it has an accent (i.e. a downstep symbol)
         if len(re.sub(non_mora_zi, r'',raw_pron.split("ꜜ")[0])) == 1:
@@ -352,7 +373,7 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
         char_dex += 1
 
     #parse with mecab and add new terms to the entries to look up
-    srcTxt_2 = reading_parser(reader.reading(soup_maker(new_src)))
+    srcTxt_2 = reading_parser(reader.reading(strip_html_markup(new_src)))
     srcTxt_all.extend([term for term in srcTxt_2 if term not in srcTxt_all])
 
     colorized_words, prons, _ = multi_lookup_helper(srcTxt_all, lookup_func)
@@ -371,7 +392,7 @@ def multi_lookup(src, lookup_func, separator = "  ***  "):
     if do_colorize:
         if is_sentence:
             for word in colorized_words:
-                src = re.sub(soup_maker(word), word, src)
+                src = re.sub(strip_html_markup(word), word, src)
             final_src = src
         else:
             final_src = delim.join(colorized_words) if prons and colorized_words else src
