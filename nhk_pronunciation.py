@@ -11,8 +11,10 @@ import time
 if sys.version_info.major == 3:
     from PyQt5.QtWidgets import *
     import pickle
+    from html.parser import HTMLParser
 else:
     import cPickle as pickle
+    from HTMLParser import HTMLParser
 
 from aqt import mw
 from aqt.qt import *
@@ -57,6 +59,40 @@ def katakana_to_hiragana(to_translate):
     katakana = [ord(char) for char in katakana]
     translate_table = dict(zip(katakana, hiragana))
     return to_translate.translate(translate_table)
+
+
+class HTMLTextExtractor(HTMLParser):
+        def __init__(self):
+            if issubclass(self.__class__, object):
+                super(HTMLTextExtractor, self).__init__()
+            else:
+                HTMLParser.__init__(self)
+            self.result = []
+
+        def handle_data(self, d):
+            self.result.append(d)
+
+        def get_text(self):
+            return ''.join(self.result)
+
+
+def strip_html_markup(html, recursive=False):
+    """
+    Strip html markup. If the html contains escaped html markup itself, one
+    can use the recursive option to also strip this.
+    """
+    old_text = None
+    new_text = html
+    while new_text != old_text:
+        old_text = new_text
+        s = HTMLTextExtractor()
+        s.feed(new_text)
+        new_text = s.get_text()
+
+        if not recursive:
+            break
+
+    return new_text
 
 
 # ************************************************
@@ -194,8 +230,14 @@ def inline_style(txt):
     return txt
 
 
-def getPronunciations(expr):
+def getPronunciations(expr, sanitize=True):
     """ Search pronuncations for a particular expression """
+
+    # Sanitize input
+    if sanitize:
+        expr = strip_html_markup(expr)
+        expr = expr.strip()
+
     ret = []
     if expr in thedict:
         for kana, pron in thedict[expr]:
@@ -377,7 +419,7 @@ def regeneratePronunciations(nids):
         if not srcTxt.strip():
             continue
 
-        prons = getPronunciations(srcTxt.strip())
+        prons = getPronunciations(srcTxt)
         note[dst] = "  ***  ".join(prons)
 
         note.flush()
