@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import io
 import re
@@ -93,6 +93,26 @@ def strip_html_markup(html, recursive=False):
             break
 
     return new_text
+
+
+# Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560
+non_jap_regex = re.compile(u'[^\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+', re.U)
+jp_sep_regex = re.compile(u'[・、※【】「」〒◎×〃゜『』《》〜〽。〄〇〈〉〓〔〕〖〗〘 〙〚〛〝 〞〟〠〡〢〣〥〦〧〨〫  〬  〭  〮〯〶〷〸〹〺〻〼〾〿]', re.U)
+
+
+def split_separators(expr):
+    """
+    Split text by common separators (like / or ・) into separate words that can
+    be looked up.
+    """
+    expr = strip_html_markup(expr).strip()
+
+    # Replace all typical separators with a space
+    expr = re.sub(non_jap_regex, ' ', expr)  # Remove non-Japanese characters
+    expr = re.sub(jp_sep_regex, ' ', expr)  # Remove Japanese punctuation
+    expr_all = expr.split(' ')
+
+    return expr_all
 
 
 # ************************************************
@@ -231,29 +251,60 @@ def inline_style(txt):
 
 
 def getPronunciations(expr, sanitize=True):
-    """ Search pronuncations for a particular expression """
+    """
+    Search pronuncations for a particular expression
+
+    Returns a dictionary mapping the expression (or sub-expressions contained
+    in the expression) to a list of html-styled pronunciations.
+    """
 
     # Sanitize input
     if sanitize:
         expr = strip_html_markup(expr)
         expr = expr.strip()
 
-    ret = []
+    ret = OrderedDict()
     if expr in thedict:
+        styled_prons = []
+
         for kana, pron in thedict[expr]:
             inlinepron = inline_style(pron)
 
             if config["pronunciationHiragana"]:
                 inlinepron = katakana_to_hiragana(inlinepron)
 
-            if inlinepron not in ret:
-                ret.append(inlinepron)
+            if inlinepron not in styled_prons:
+                styled_prons.append(inlinepron)
+        ret[expr] = styled_prons
+    else:
+        # Try to split the expression in various ways, and check if any of those results
+        split_expr = split_separators(expr)
+
+        if len(split_expr) > 1:
+            for expr in split_expr:
+                ret.update(getPronunciations(expr, sanitize))
+
     return ret
+
+
+def getFormattedPronunciations(expr, sep_single=" *** ", sep_multi="<br/>\n", expr_sep=None, sanitize=True):
+    prons = getPronunciations(expr, sanitize)
+
+    single_merge = OrderedDict()
+    for k, v in prons.items():
+        single_merge[k] = sep_single.join(v)
+
+    if expr_sep:
+        txt = sep_multi.join([u"{}{}{}".format(k, expr_sep, v) for k, v in single_merge.items()])
+    else:
+        txt = sep_multi.join(single_merge.values())
+
+    return txt
 
 
 def lookupPronunciation(expr):
     """ Show the pronunciation when the user does a manual lookup """
-    ret = getPronunciations(expr)
+    txt = getFormattedPronunciations(expr, "<br/>\n", "<br/><br/>\n", ":<br/>\n")
 
     thehtml = """
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
@@ -271,7 +322,7 @@ font-size: 30px;
 %s
 </BODY>
 </HTML>
-""" % ("<br/><br/>\n".join(ret))
+""" % txt
 
     showText(thehtml, type="html")
 
@@ -354,8 +405,7 @@ def add_pronunciation_once(fields, model, data, n):
 
     # Only add the pronunciation if there's not already one in the pronunciation field
     if not fields[dst]:
-        prons = getPronunciations(fields[src])
-        fields[dst] = "  ***  ".join(prons)
+        fields[dst] = getFormattedPronunciations(fields[src])
 
     return fields
 
@@ -388,8 +438,7 @@ def add_pronunciation_focusLost(flag, n, fidx):
 
     # update field
     try:
-        prons = getPronunciations(srcTxt)
-        n[dst] = "  ***  ".join(prons)
+        n[dst] = getFormattedPronunciations(srcTxt)
     except Exception as e:
         raise
     return True
@@ -419,8 +468,7 @@ def regeneratePronunciations(nids):
         if not srcTxt.strip():
             continue
 
-        prons = getPronunciations(srcTxt)
-        note[dst] = "  ***  ".join(prons)
+        note[dst] = getFormattedPronunciations(srcTxt)
 
         note.flush()
     mw.progress.finish()
