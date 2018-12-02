@@ -236,7 +236,12 @@ font-size: 30px;
 
 def onLookupPronunciation():
     """ Do a lookup on the selection """
-    mw.lookup.selection(lookupPronunciation)
+    text = mw.web.selectedText()
+    text = text.strip()
+    if not text:
+        showInfo(_("Empty selection."))
+        return
+    lookupPronunciation(text)
 
 
 # ************************************************
