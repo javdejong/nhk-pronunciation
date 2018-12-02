@@ -5,6 +5,8 @@ from collections import namedtuple, OrderedDict
 import io
 import re
 import os
+import platform
+import subprocess
 import sys
 import time
 
@@ -18,7 +20,7 @@ else:
 
 from aqt import mw
 from aqt.qt import *
-from aqt.utils import showText
+from aqt.utils import isMac, isWin, showInfo, showText
 
 # ************************************************
 #                Global Variables                *
@@ -43,6 +45,30 @@ if sys.version_info.major == 2:
     config = json.load(io.open(os.path.join(dir_path, 'nhk_pronunciation_config.json'), 'r', encoding="utf-8"))
 else:
     config = mw.addonManager.getConfig(__name__)
+
+# Check if Mecab is available and/or if the user wants it to be used
+if config['useMecab']:
+    lookup_mecab = True
+else:
+    lookup_mecab = False
+
+if sys.version_info.major == 3:
+    import glob
+    # Note that there are no guarantees on the folder name of the Japanese
+    # add-on. We therefore have to look recursively in our parent folder.
+    mecab_search = glob.glob(os.path.join(dir_path,  r"..\**\support\mecab.exe"))
+    mecab_exists = len(mecab_search) > 0
+    if mecab_exists:
+        mecab_base_path = os.path.dirname(os.path.normpath(mecab_search[0]))
+else:
+    mecab_exists = os.path.exists(os.path.join(dir_path, 'japanese/support/mecab.exe'))
+    if mecab_exists:
+        mecab_base_path = os.path.join(dir_path, 'japanese/support')
+
+if lookup_mecab and not mecab_exists:
+    showInfo("NHK-Pronunciation: Mecab use requested, but Japanese add-on with Mecab not found.")
+    lookup_mecab = False
+
 
 # ************************************************
 #                  Helper functions              *
@@ -113,6 +139,82 @@ def split_separators(expr):
     expr_all = expr.split(' ')
 
     return expr_all
+
+
+# ******************************************************************
+#                               Mecab                              *
+#  Copied from Japanese add-on by Damien Elmes with minor changes. *
+# ******************************************************************
+
+class MecabController():
+
+    def __init__(self, base_path):
+        self.mecab = None
+        self.base_path = os.path.normpath(base_path)
+
+        if sys.platform == "win32":
+            self._si = subprocess.STARTUPINFO()
+            try:
+                self._si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            except:
+                self._si.dwFlags |= subprocess._subprocess.STARTF_USESHOWWINDOW
+        else:
+            self._si = None
+
+    @staticmethod
+    def mungeForPlatform(popen):
+        if isWin:
+            # popen = [os.path.normpath(x) for x in popen]
+            popen[0] += ".exe"
+        elif not isMac:
+            popen[0] += ".lin"
+        return popen
+
+    def setup(self):
+        mecabArgs = ['--node-format=%f[6] ', '--eos-format=\n',
+                     '--unk-format=%m[] ']
+
+        self.mecabCmd = self.mungeForPlatform(
+            [os.path.join(self.base_path, "mecab")] + mecabArgs + [
+                '-d', self.base_path, '-r', os.path.join(self.base_path, "mecabrc")])
+
+        os.environ['DYLD_LIBRARY_PATH'] = self.base_path
+        os.environ['LD_LIBRARY_PATH'] = self.base_path
+        if not isWin:
+            os.chmod(self.mecabCmd[0], 0o755)
+
+    def ensureOpen(self):
+        if not self.mecab:
+            self.setup()
+            try:
+                self.mecab = subprocess.Popen(
+                    self.mecabCmd, bufsize=-1, stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    startupinfo=self._si)
+            except OSError as e:
+                raise Exception(str(e) + ": Please ensure your Linux system has 64 bit binary support.")
+
+    @staticmethod
+    def _escapeText(text):
+        # strip characters that trip up kakasi/mecab
+        text = text.replace("\n", " ")
+        text = text.replace(u'\uff5e', "~")
+        text = re.sub("<br( /)?>", "---newline---", text)
+        text = strip_html_markup(text, True)
+        text = text.replace("---newline---", "<br>")
+        return text
+
+    def reading(self, expr):
+        self.ensureOpen()
+        expr = self._escapeText(expr)
+        self.mecab.stdin.write(expr.encode("euc-jp", "ignore") + b'\n')
+        self.mecab.stdin.flush()
+        expr = self.mecab.stdout.readline().rstrip(b'\r\n').decode('euc-jp')
+        return expr
+
+
+if lookup_mecab:
+    mecab_reader = MecabController(mecab_base_path)
 
 
 # ************************************************
@@ -250,7 +352,7 @@ def inline_style(txt):
     return txt
 
 
-def getPronunciations(expr, sanitize=True):
+def getPronunciations(expr, sanitize=True, recurse=True):
     """
     Search pronuncations for a particular expression
 
@@ -276,13 +378,21 @@ def getPronunciations(expr, sanitize=True):
             if inlinepron not in styled_prons:
                 styled_prons.append(inlinepron)
         ret[expr] = styled_prons
-    else:
+    elif recurse:
         # Try to split the expression in various ways, and check if any of those results
         split_expr = split_separators(expr)
 
         if len(split_expr) > 1:
             for expr in split_expr:
                 ret.update(getPronunciations(expr, sanitize))
+
+        # Only if lookups were not succesful, we try splitting with Mecab
+        if not ret and lookup_mecab:
+            for sub_expr in mecab_reader.reading(expr).split():
+                # Avoid infinite recursion by saying that we should not try
+                # Mecab again if we do not find any matches for this sub-
+                # expression.
+                ret.update(getPronunciations(sub_expr, sanitize, False))
 
     return ret
 

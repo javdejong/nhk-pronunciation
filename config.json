@@ -7,5 +7,6 @@
 	"srcFields": ["Expression", "Kanji Word"],
 	"dstFields": ["Pronunciation"],
 	"regenerateReadings": false,
-	"pronunciationHiragana": false
+	"pronunciationHiragana": false,
+	"useMecab": true
 }
