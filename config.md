@@ -12,3 +12,5 @@ the text "japanese" or "kanji" in the note type name. Case is ignored.
 *pronunciationHiragana*: Use hiragana instead of katakana for the readings.
 
 *styles*: Style mappings. Edit this if you want different colors, etc.
+
+*useMecab*: Whether or not to try and use Mecab to split a sentence/conjugation when performing lookups. The Japanese add-on is required for this to work.
