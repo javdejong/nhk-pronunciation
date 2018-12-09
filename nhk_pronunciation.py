@@ -38,7 +38,7 @@ thedict = {}
 
 if sys.version_info.major == 2:
     import json
-    config = json.load(io.open(os.path.join(dir_path, 'nhk_pronunciation_config.json'), 'r'))
+    config = json.load(io.open(os.path.join(dir_path, 'nhk_pronunciation_config.json'), 'r', encoding="utf-8"))
 else:
     config = mw.addonManager.getConfig(__name__)
 
