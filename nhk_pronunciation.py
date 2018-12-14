@@ -254,6 +254,7 @@ def createMenu():
         ml = QMenu()
         ml.setTitle("Lookup")
         mw.form.menuTools.addAction(ml.menuAction())
+        mw.form.menuLookup = ml
 
     ml = mw.form.menuLookup
     # add action
