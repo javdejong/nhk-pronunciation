@@ -8,5 +8,6 @@
 	"dstFields": ["Pronunciation"],
 	"regenerateReadings": false,
 	"pronunciationHiragana": false,
-	"useMecab": true
+	"useMecab": true,
+	"lookupShortcut": ""
 }

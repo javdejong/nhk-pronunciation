@@ -463,6 +463,8 @@ def createMenu():
     # add action
     a = QAction(mw)
     a.setText("...pronunciation")
+    if config["lookupShortcut"]:
+        a.setShortcut(config["lookupShortcut"])
     ml.addAction(a)
     a.triggered.connect(onLookupPronunciation)
 

@@ -14,3 +14,5 @@ the text "japanese" or "kanji" in the note type name. Case is ignored.
 *styles*: Style mappings. Edit this if you want different colors, etc.
 
 *useMecab*: Whether or not to try and use Mecab to split a sentence/conjugation when performing lookups. The Japanese add-on is required for this to work.
+
+*lookupShortcut*: The shortcut to perform pronuncation lookup on the selected text (Tools -> Lookup -> ...pronunciation). Example shortcut value could be something like "Ctrl+8". Empty/disabled by default.
