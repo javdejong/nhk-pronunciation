@@ -56,14 +56,14 @@ if sys.version_info.major == 3:
     import glob
     # Note that there are no guarantees on the folder name of the Japanese
     # add-on. We therefore have to look recursively in our parent folder.
-    mecab_search = glob.glob(os.path.join(dir_path,  r"..\**\support\mecab.exe"))
+    mecab_search = glob.glob(os.path.join(dir_path,  os.pardir + os.sep + '**' + os.sep + 'support' + os.sep + 'mecab.exe'))
     mecab_exists = len(mecab_search) > 0
     if mecab_exists:
         mecab_base_path = os.path.dirname(os.path.normpath(mecab_search[0]))
 else:
-    mecab_exists = os.path.exists(os.path.join(dir_path, 'japanese/support/mecab.exe'))
+    mecab_exists = os.path.exists(os.path.join(dir_path, 'japanese' + os.sep + 'support' + os.sep + 'mecab.exe'))
     if mecab_exists:
-        mecab_base_path = os.path.join(dir_path, 'japanese/support')
+        mecab_base_path = os.path.join(dir_path, 'japanese' + os.sep + 'support')
 
 if lookup_mecab and not mecab_exists:
     showInfo("NHK-Pronunciation: Mecab use requested, but Japanese add-on with Mecab not found.")
