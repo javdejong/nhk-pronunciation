@@ -207,9 +207,13 @@ class MecabController():
     def reading(self, expr):
         self.ensureOpen()
         expr = self._escapeText(expr)
-        self.mecab.stdin.write(expr.encode("euc-jp", "ignore") + b'\n')
-        self.mecab.stdin.flush()
-        expr = self.mecab.stdout.readline().rstrip(b'\r\n').decode('euc-jp')
+        try:
+            self.mecab.stdin.write(expr.encode("utf-8", "ignore") + b'\n')
+            self.mecab.stdin.flush()
+            expr = self.mecab.stdout.readline().rstrip(b'\r\n').decode('utf-8')
+        except UnicodeDecodeError as e:
+           raise Exception(str(e) + ": Please ensure you have updated to the most recent Japanese Support add-on.")
+
         return expr
 
 
