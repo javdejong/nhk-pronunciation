@@ -121,6 +121,10 @@ def strip_html_markup(html, recursive=False):
     return new_text
 
 
+def should_be_modified(note):
+    return not config["noteTypes"] or any(nt.lower() in note.model()['name'].lower() for nt in config["noteTypes"])
+
+
 # Ref: https://stackoverflow.com/questions/15033196/using-javascript-to-check-whether-a-string-contains-japanese-characters-includi/15034560#15034560
 non_jap_regex = re.compile(u'[^\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f\u4e00-\u9fff\u3400-\u4dbf]+', re.U)
 jp_sep_regex = re.compile(u'[・、※【】「」〒◎×〃゜『』《》〜〽。〄〇〈〉〓〔〕〖〗〘 〙〚〛〝 〞〟〠〡〢〣〥〦〧〨〫  〬  〭  〮〯〶〷〸〹〺〻〼〾〿]', re.U)
@@ -509,9 +513,7 @@ def get_src_dst_fields(fields):
 def add_pronunciation_once(fields, model, data, n):
     """ When possible, temporarily set the pronunciation to a field """
 
-    # Check if this is a supported note type. If it is not, return.
-    # If no note type has been specified, we always continue the lookup proces.
-    if config["noteTypes"] and not any(nt.lower() in model['name'].lower() for nt in config["noteTypes"]):
+    if not should_be_modified(n):
         return fields
 
     src, srcIdx, dst, dstIdx = get_src_dst_fields(fields)
@@ -526,9 +528,7 @@ def add_pronunciation_once(fields, model, data, n):
     return fields
 
 def add_pronunciation_focusLost(flag, n, fidx):
-    # Check if this is a supported note type. If it is not, return.
-    # If no note type has been specified, we always continue the lookup proces.
-    if config["noteTypes"] and not any(nt.lower() in n.model()['name'].lower() for nt in config["noteTypes"]):
+    if not should_be_modified(n):
         return flag
 
     from aqt import mw
@@ -566,9 +566,7 @@ def regeneratePronunciations(nids):
     for nid in nids:
         note = mw.col.getNote(nid)
 
-        # Check if this is a supported note type. If it is not, skip.
-        # If no note type has been specified, we always continue the lookup proces.
-        if config["noteTypes"] and not any(nt.lower() in note.model()['name'].lower() for nt in config["noteTypes"]):
+        if not should_be_modified(note):
             continue
 
         src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
@@ -589,6 +587,29 @@ def regeneratePronunciations(nids):
         note.flush()
     mw.progress.finish()
     mw.reset()
+
+
+def on_note_will_flush(note):
+
+    if not (should_be_modified(note) and config["generateOnNoteFlush"]):
+        return note
+
+    src, srcIdx, dst, dstIdx = get_src_dst_fields(note)
+
+    if src is None or dst is None:
+        return note
+
+    if note[dst] and not config["regenerateReadings"]:
+        # already contains data, skip
+        return note
+
+    srcTxt = mw.col.media.strip(note[src])
+    if not srcTxt.strip():
+        return note
+
+    note[dst] = getFormattedPronunciations(srcTxt)
+
+    return note
 
 
 # ************************************************
@@ -619,6 +640,7 @@ else:
 createMenu()
 
 from anki.hooks import addHook
+from anki import hooks
 
 addHook("mungeFields", add_pronunciation_once)
 
@@ -626,3 +648,5 @@ addHook('editFocusLost', add_pronunciation_focusLost)
 
 # Bulk add
 addHook("browser.setupMenus", setupBrowserMenu)
+
+hooks.note_will_flush.append(on_note_will_flush)
